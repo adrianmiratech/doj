@@ -48,18 +48,44 @@ export async function listarCanalesTexto(): Promise<CanalTexto[]> {
   }
 }
 
-/** Envía un mensaje (como embed) a un canal del servidor en nombre del bot. */
-export async function enviarMensajeCanal(channelId: string, mensaje: string): Promise<Resultado> {
+type ResultadoMensaje = Resultado & { messageId?: string };
+
+/** Envía un mensaje (como embed) a un canal del servidor en nombre del bot. Devuelve el ID del mensaje creado. */
+export async function enviarMensajeCanal(
+  channelId: string,
+  mensaje: string,
+  opciones?: { replyToMessageId?: string },
+): Promise<ResultadoMensaje> {
   if (!process.env.DISCORD_TOKEN) return { ok: false, error: "Falta configurar DISCORD_TOKEN" };
   try {
+    const body: Record<string, unknown> = {
+      embeds: [{ description: mensaje, color: COLOR_DOJ, footer: FOOTER, timestamp: new Date().toISOString() }],
+    };
+    if (opciones?.replyToMessageId) {
+      body.message_reference = { message_id: opciones.replyToMessageId, fail_if_not_exists: false };
+    }
     const res = await fetch(`${API}/channels/${channelId}/messages`, {
       method: "POST",
       headers: headers(),
-      body: JSON.stringify({
-        embeds: [{ description: mensaje, color: COLOR_DOJ, footer: FOOTER, timestamp: new Date().toISOString() }],
-      }),
+      body: JSON.stringify(body),
     });
     if (!res.ok) return { ok: false, error: await res.text() };
+    const data = (await res.json()) as { id: string };
+    return { ok: true, messageId: data.id };
+  } catch (error) {
+    return { ok: false, error: String(error) };
+  }
+}
+
+/** Añade una reacción (emoji) a un mensaje existente, en nombre del bot. */
+export async function reaccionarMensaje(channelId: string, messageId: string, emoji: string): Promise<Resultado> {
+  if (!process.env.DISCORD_TOKEN) return { ok: false, error: "Falta configurar DISCORD_TOKEN" };
+  try {
+    const res = await fetch(
+      `${API}/channels/${channelId}/messages/${messageId}/reactions/${encodeURIComponent(emoji)}/@me`,
+      { method: "PUT", headers: headers() },
+    );
+    if (!res.ok && res.status !== 204) return { ok: false, error: await res.text() };
     return { ok: true };
   } catch (error) {
     return { ok: false, error: String(error) };

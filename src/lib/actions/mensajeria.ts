@@ -4,8 +4,18 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
+import { notificarDiscord } from "@/lib/discord-notify";
 
 const NOMBRE_GRUPO_GENERAL = "Grupo general";
+// Mientras el "presenteHasta" de un participante siga en el futuro, se asume
+// que tiene la conversación abierta en pantalla (heartbeat del cliente) y no
+// se le manda aviso por Discord de los mensajes nuevos.
+const VENTANA_PRESENCIA_MS = 30_000;
+
+async function esAdmin(userId: string): Promise<boolean> {
+  const u = await prisma.user.findUnique({ where: { id: userId }, select: { role: true } });
+  return u?.role === "JUEZ_SUPREMO";
+}
 
 /** Crea (si falta) el grupo general del personal y asegura que el usuario esté dentro. Devuelve su id. */
 export async function asegurarGrupoGeneral(userId: string): Promise<string> {
@@ -32,7 +42,12 @@ export type ConversacionResumen = {
   noLeidos: number;
 };
 
-/** Conversaciones del usuario, con el último mensaje y el número de no leídos, ordenadas por actividad reciente. */
+/**
+ * Conversaciones del usuario, con el último mensaje y el número de no
+ * leídos, con el grupo general siempre fijado primero y el resto ordenado
+ * por actividad reciente. Todo en un puñado de consultas (nada de N+1 por
+ * conversación), porque cada una contra la base remota pesa.
+ */
 export async function listarConversacionesDe(userId: string): Promise<ConversacionResumen[]> {
   const participaciones = await prisma.conversacionParticipante.findMany({
     where: { userId },
@@ -45,34 +60,38 @@ export async function listarConversacionesDe(userId: string): Promise<Conversaci
       },
     },
   });
+  if (participaciones.length === 0) return [];
 
-  const resumenes = await Promise.all(
-    participaciones.map(async (p) => {
-      const conv = p.conversacion;
-      const otro = conv.tipo === "PRIVADO" ? conv.participantes.find((x) => x.userId !== userId)?.user : null;
-      const titulo = conv.tipo === "GRUPO" ? conv.nombre ?? NOMBRE_GRUPO_GENERAL : otro ? `${otro.nombre} ${otro.apellidos}` : "Conversación";
-      const ultimo = conv.mensajes[0] ?? null;
+  const conversacionIds = participaciones.map((p) => p.conversacionId);
+  const mensajesAjenos = await prisma.mensaje.findMany({
+    where: { conversacionId: { in: conversacionIds }, autorId: { not: userId } },
+    select: { conversacionId: true, createdAt: true },
+  });
 
-      const noLeidos = await prisma.mensaje.count({
-        where: {
-          conversacionId: conv.id,
-          autorId: { not: userId },
-          createdAt: { gt: p.ultimaLectura ?? new Date(0) },
-        },
-      });
+  const resumenes = participaciones.map((p) => {
+    const conv = p.conversacion;
+    const otro = conv.tipo === "PRIVADO" ? conv.participantes.find((x) => x.userId !== userId)?.user : null;
+    const titulo =
+      conv.tipo === "GRUPO" ? conv.nombre ?? NOMBRE_GRUPO_GENERAL : otro ? `${otro.nombre} ${otro.apellidos}` : "Conversación";
+    const ultimo = conv.mensajes[0] ?? null;
+    const desde = p.ultimaLectura ?? new Date(0);
+    const noLeidos = mensajesAjenos.filter((m) => m.conversacionId === conv.id && m.createdAt > desde).length;
 
-      return {
-        id: conv.id,
-        tipo: conv.tipo,
-        titulo,
-        ultimoMensaje: ultimo?.contenido ?? null,
-        ultimaFecha: ultimo?.createdAt ?? conv.createdAt,
-        noLeidos,
-      };
-    }),
-  );
+    return {
+      id: conv.id,
+      tipo: conv.tipo,
+      titulo,
+      ultimoMensaje: ultimo?.contenido ?? null,
+      ultimaFecha: ultimo?.createdAt ?? conv.createdAt,
+      noLeidos,
+    };
+  });
 
-  return resumenes.sort((a, b) => b.ultimaFecha.getTime() - a.ultimaFecha.getTime());
+  return resumenes.sort((a, b) => {
+    if (a.tipo === "GRUPO") return -1;
+    if (b.tipo === "GRUPO") return 1;
+    return b.ultimaFecha.getTime() - a.ultimaFecha.getTime();
+  });
 }
 
 /** Abre (o crea) la conversación privada 1 a 1 con otro usuario y navega a ella. */
@@ -111,6 +130,17 @@ export async function marcarConversacionLeida(conversacionId: string) {
   });
 }
 
+/** Heartbeat: mientras el cliente lo siga llamando, se asume que la conversación está abierta en pantalla. */
+export async function marcarPresencia(conversacionId: string) {
+  const session = await auth();
+  if (!session?.user) return;
+  const presenteHasta = new Date(Date.now() + VENTANA_PRESENCIA_MS);
+  await prisma.conversacionParticipante.updateMany({
+    where: { conversacionId, userId: session.user.id },
+    data: { presenteHasta, ultimaLectura: new Date() },
+  });
+}
+
 export async function enviarMensaje(formData: FormData) {
   const session = await auth();
   if (!session?.user) throw new Error("No autorizado");
@@ -124,12 +154,59 @@ export async function enviarMensaje(formData: FormData) {
   });
   if (!participa) throw new Error("No autorizado");
 
-  await prisma.mensaje.create({ data: { conversacionId, autorId: session.user.id, contenido } });
-  await prisma.conversacionParticipante.update({
-    where: { conversacionId_userId: { conversacionId, userId: session.user.id } },
-    data: { ultimaLectura: new Date() },
-  });
+  const ahora = new Date();
+  const [, , destinatarios] = await prisma.$transaction([
+    prisma.mensaje.create({ data: { conversacionId, autorId: session.user.id, contenido } }),
+    prisma.conversacionParticipante.update({
+      where: { conversacionId_userId: { conversacionId, userId: session.user.id } },
+      data: { ultimaLectura: ahora, presenteHasta: new Date(ahora.getTime() + VENTANA_PRESENCIA_MS) },
+    }),
+    prisma.conversacionParticipante.findMany({
+      where: { conversacionId, userId: { not: session.user.id } },
+      include: { user: true },
+    }),
+  ]);
+
+  const remitente = `${session.user.nombre} ${session.user.apellidos}`;
+  const previa = contenido.length > 200 ? `${contenido.slice(0, 200)}…` : contenido;
+  for (const destinatario of destinatarios) {
+    const ausente = !destinatario.presenteHasta || destinatario.presenteHasta < ahora;
+    if (ausente) {
+      await notificarDiscord(destinatario.user.discordId, `💬 **${remitente}** te ha escrito: ${previa}`);
+    }
+  }
 
   revalidatePath(`/dashboard/mensajeria/${conversacionId}`);
   revalidatePath("/dashboard/mensajeria");
+}
+
+/** Borra un mensaje: el propio autor en cualquier momento, o el Juez Supremo (admin) como moderación. */
+export async function eliminarMensaje(formData: FormData) {
+  const session = await auth();
+  if (!session?.user) throw new Error("No autorizado");
+
+  const id = String(formData.get("id") ?? "");
+  const conversacionId = String(formData.get("conversacionId") ?? "");
+  if (!id) throw new Error("Datos incompletos");
+
+  const mensaje = await prisma.mensaje.findUniqueOrThrow({ where: { id } });
+  const admin = await esAdmin(session.user.id);
+  if (mensaje.autorId !== session.user.id && !admin) throw new Error("No autorizado");
+
+  await prisma.mensaje.delete({ where: { id } });
+  revalidatePath(`/dashboard/mensajeria/${conversacionId}`);
+}
+
+/** Expulsa a alguien del grupo general. Solo el Juez Supremo (admin), como en un grupo de WhatsApp. */
+export async function expulsarDelGrupo(formData: FormData) {
+  const session = await auth();
+  if (!session?.user) throw new Error("No autorizado");
+  if (!(await esAdmin(session.user.id))) throw new Error("No autorizado");
+
+  const conversacionId = String(formData.get("conversacionId") ?? "");
+  const userId = String(formData.get("userId") ?? "");
+  if (!conversacionId || !userId) throw new Error("Datos incompletos");
+
+  await prisma.conversacionParticipante.deleteMany({ where: { conversacionId, userId } });
+  revalidatePath(`/dashboard/mensajeria/${conversacionId}`);
 }

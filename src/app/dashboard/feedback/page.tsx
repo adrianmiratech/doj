@@ -1,6 +1,13 @@
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
-import { enviarFeedback } from "@/lib/actions/feedback";
+import { enviarFeedback, cambiarEstadoFeedback } from "@/lib/actions/feedback";
+
+const ESTADO_LABEL: Record<string, string> = { PENDIENTE: "Pendiente", ACEPTADA: "Aceptada", RECHAZADA: "Rechazada" };
+const ESTADO_COLOR: Record<string, string> = {
+  PENDIENTE: "bg-warning/15 text-warning border-warning/30",
+  ACEPTADA: "bg-success/15 text-success border-success/30",
+  RECHAZADA: "bg-danger/15 text-danger border-danger/30",
+};
 
 export default async function FeedbackPage() {
   const session = await auth();
@@ -67,14 +74,37 @@ export default async function FeedbackPage() {
                 >
                   {f.tipo}
                 </span>
-                <span className="text-xs text-text-muted">
-                  {new Date(f.createdAt).toLocaleDateString("es-ES")}
-                </span>
+                <div className="flex items-center gap-2">
+                  <span
+                    className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium ${ESTADO_COLOR[f.estado]}`}
+                  >
+                    {ESTADO_LABEL[f.estado]}
+                  </span>
+                  <span className="text-xs text-text-muted">
+                    {new Date(f.createdAt).toLocaleDateString("es-ES")}
+                  </span>
+                </div>
               </div>
               <p className="mt-2 text-sm">{f.contenido}</p>
               <p className="mt-1 text-xs text-text-muted">
                 {f.anonimo || !f.autor ? "Anónimo" : `${f.autor.nombre} ${f.autor.apellidos}`}
               </p>
+              <form action={cambiarEstadoFeedback} className="mt-2 flex gap-2">
+                <input type="hidden" name="id" value={f.id} />
+                {(["PENDIENTE", "ACEPTADA", "RECHAZADA"] as const)
+                  .filter((e) => e !== f.estado)
+                  .map((e) => (
+                    <button
+                      key={e}
+                      type="submit"
+                      name="estado"
+                      value={e}
+                      className="rounded-md border border-border px-2.5 py-1 text-xs font-medium hover:bg-surface-2 transition-colors"
+                    >
+                      Marcar {ESTADO_LABEL[e].toLowerCase()}
+                    </button>
+                  ))}
+              </form>
             </div>
           ))}
         </div>

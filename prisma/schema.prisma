@@ -458,6 +458,7 @@ model ConversacionParticipante {
   userId         String
   user           User         @relation(fields: [userId], references: [id])
   ultimaLectura  DateTime?
+  presenteHasta  DateTime? // heartbeat: mientras tenga la conversacion abierta, no se le manda DM de Discord por mensajes nuevos
 
   @@unique([conversacionId, userId])
 }
@@ -474,13 +475,15 @@ model Mensaje {
 
 // Quejas y sugerencias internas del personal hacia la administracion
 model Feedback {
-  id        String   @id @default(cuid())
-  tipo      String // "Sugerencia" | "Queja"
-  contenido String
-  anonimo   Boolean  @default(false)
-  autorId   String?
-  autor     User?    @relation(fields: [autorId], references: [id])
-  createdAt DateTime @default(now())
+  id               String   @id @default(cuid())
+  tipo             String // "Sugerencia" | "Queja"
+  contenido        String
+  anonimo          Boolean  @default(false)
+  autorId          String?
+  autor            User?    @relation(fields: [autorId], references: [id])
+  estado           String   @default("PENDIENTE") // "PENDIENTE" | "ACEPTADA" | "RECHAZADA"
+  discordMessageId String? // mensaje original en el canal de sugerencias, para reaccionar/responder al cambiar de estado
+  createdAt        DateTime @default(now())
 }
 
 // Postulacion de un civil a un rango del Departamento. Solo una postulacion

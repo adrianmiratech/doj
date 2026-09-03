@@ -743,8 +743,10 @@ async function manejarMensajeSugerencia(message: Message | PartialMessage) {
         contenido: autor ? contenido : `(Discord: ${message.author?.tag ?? "desconocido"}) ${contenido}`,
         anonimo: false,
         autorId: autor?.id ?? null,
+        discordMessageId: message.id,
       },
     });
+    await message.react("👍");
   } catch (error) {
     console.error("[discord] Error guardando sugerencia desde Discord:", error);
   }
