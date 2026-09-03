@@ -43,7 +43,7 @@ async function obtenerRolesGuild(guildId: string): Promise<{ id: string; name: s
   try {
     const res = await fetch(`${API}/guilds/${guildId}/roles`, { headers: headers() });
     if (!res.ok) return [];
-    return await res.json();
+    return (await res.json()) as { id: string; name: string }[];
   } catch {
     return [];
   }

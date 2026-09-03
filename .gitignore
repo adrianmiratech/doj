@@ -50,3 +50,6 @@ next-env.d.ts
 
 # archivos subidos en local (evidencias, certificados, avatares); en producción van a Vercel Blob
 /public/uploads
+
+# zip generado por "discloud zip" / "discloud app upload"
+/doj-portal.zip
