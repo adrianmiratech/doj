@@ -133,6 +133,27 @@ El arranque automático al iniciar sesión ya está registrado (`pm2-startup ins
 - `pm2 restart doj-web` / `pm2 restart doj-bot` — reiniciar tras un cambio de código (recuerda `npm run build` primero para la web)
 - `pm2 save` — vuelve a guardar la lista después de cualquier cambio (`start`, `restart`, `delete`) para que sobreviva a un reinicio
 
+## Alternativa: hostear el bot en Discloud
+
+En vez de (o además de) PM2 en este equipo, el bot puede correr 24/7 en [Discloud](https://discloud.com). Como `bot/index.ts` importa código compartido con la web (`src/lib/discord-roles.ts`, `discord-logs.ts`, `discord-scanner.ts`, `discord-notify.ts`, `nominas-auto.ts`, `labels.ts`, `password.ts`) y el cliente de Prisma (`src/generated/prisma`), se sube el repo completo (Discloud solo instancia el proceso que le digas con `START`, no hace falta que sea "solo el bot").
+
+Ya está preparado: `discloud.config` (define `MAIN=bot/index.ts`, `START=npm run bot`, `BUILD=npx prisma generate`) y `.discloudignore` (excluye `node_modules`, `.next`, `dev.db`, `public/uploads`, etc., para que la subida sea liviana).
+
+1. Consigue tu token de API de Discloud (servidor de Discord de Discloud → comando `/apikey`).
+2. Instala y logueate con el CLI:
+   ```bash
+   npm install -g discloud-cli
+   discloud --login
+   ```
+3. Desde la carpeta del proyecto, configura en el panel de Discloud (o con `discloud commit`) las mismas variables del `.env` que usa el bot: `DATABASE_URL`, `DATABASE_AUTH_TOKEN`, `DISCORD_TOKEN`, `DISCORD_CLIENT_ID`, `DISCORD_CLIENT_SECRET`, `APP_URL` (con la URL de Vercel si la web ya está publicada). La base de datos remota (Turso) es la misma que usa la web — así comparten datos igual que con PM2.
+4. Sube y arranca:
+   ```bash
+   discloud up
+   ```
+5. `discloud status` para ver que quedó online, `discloud logs` para ver los logs en vivo.
+
+Si corre en Discloud, apaga el `doj-bot` de PM2 en este equipo (`pm2 delete doj-bot`) para no tener dos instancias del bot conectadas a la vez (Discord las rechazaría / duplicaría cada acción).
+
 ## Publicar en producción (GitHub + Vercel)
 
 El bot de Discord (PM2) sigue corriendo en este equipo; solo la web (Next.js) se despliega en Vercel. Ambos deben apuntar a la **misma base de datos**, así que el primer paso es sacarla de este disco:
