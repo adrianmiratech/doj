@@ -62,6 +62,17 @@ async function obtenerRolesGuild(guildId: string): Promise<{ id: string; name: s
 }
 
 /**
+ * Quita decoración típica de un nombre de rol personalizado en Discord
+ * ("🔨 | Juez de Distrito" → "Juez de Distrito") para poder comparar por
+ * igualdad exacta en vez de "includes" — un "includes" simple confundiría
+ * p. ej. "Fiscal" con "Fiscal General".
+ */
+function normalizarNombreRol(nombreDiscord: string): string {
+  const ultimaParte = nombreDiscord.includes("|") ? nombreDiscord.split("|").pop()! : nombreDiscord;
+  return ultimaParte.replace(/^[^\p{L}]+/u, "").trim();
+}
+
+/**
  * Resuelve el ID de Discord del rol de un rango, priorizando el guardado en
  * RolDiscordId (no depende del nombre del rol en Discord). Si no hay uno
  * guardado, busca por nombre exacto o que lo contenga (por si tiene emoji u
@@ -78,7 +89,8 @@ async function resolverRolId(prisma: PrismaLike, guildId: string, roleKey: strin
     return guardado.discordRoleId;
   }
 
-  const encontrado = existentes.find((r) => r.name === nombre) ?? existentes.find((r) => r.name.includes(nombre));
+  const encontrado =
+    existentes.find((r) => r.name === nombre) ?? existentes.find((r) => normalizarNombreRol(r.name) === nombre);
   if (!encontrado) return null;
 
   await prisma.rolDiscordId.upsert({
