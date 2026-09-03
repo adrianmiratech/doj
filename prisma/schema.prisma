@@ -418,12 +418,20 @@ model Examen {
 
 // Informes internos de actividad (no ligados a un expediente concreto)
 model Informe {
-  id        String   @id @default(cuid())
+  id        String     @id @default(cuid())
   titulo    String
   contenido String
   autorId   String
-  autor     User     @relation(fields: [autorId], references: [id])
-  createdAt DateTime @default(now())
+  autor     User       @relation(fields: [autorId], references: [id])
+  etiquetas Etiqueta[]
+  createdAt DateTime   @default(now())
+}
+
+// Etiquetas reutilizables para clasificar informes.
+model Etiqueta {
+  id       String    @id @default(cuid())
+  nombre   String    @unique
+  informes Informe[]
 }
 
 // Quejas y sugerencias internas del personal hacia la administracion
@@ -503,6 +511,18 @@ model AccesoLog {
   @@index([email])
 }
 
+// Correos, IPs o IDs de Discord exentos de disparar el aviso urgente por DM
+// al owner (para pruebas/mantenimiento sin generar alertas de falsa alarma).
+model AlertaWhitelist {
+  id        String   @id @default(cuid())
+  tipo      String // "email" | "ip" | "discord_id"
+  valor     String
+  nota      String?
+  createdAt DateTime @default(now())
+
+  @@unique([tipo, valor])
+}
+
 // Canales de Discord (creados por el bot bajo una categoria de logs) donde
 // se publica el registro de auditoria de cada tipo de evento del sistema.
 model CanalLog {
@@ -516,6 +536,15 @@ model CanalLog {
 model TarifaRango {
   role      Role  @id
   tarifaHora Int  @default(1)
+}
+
+// Guarda el ID real de Discord de cada rol una vez creado, para no volver a
+// buscarlo por nombre exacto (si el nombre del rol se personaliza en Discord
+// —p. ej. con emoji— la búsqueda por nombre falla y el bot lo recrea
+// duplicado). Con el ID guardado, siempre reutiliza el mismo rol.
+model RolDiscordId {
+  role          Role   @id
+  discordRoleId String
 }
 
 // Ordenes judiciales (allanamiento, arresto, registro...) que el SAPD y la
@@ -566,7 +595,7 @@ model RespuestaPostulacion {
   postulacionId String
   postulacion   Postulacion         @relation(fields: [postulacionId], references: [id])
   preguntaId    String
-  pregunta      PreguntaPostulacion @relation(fields: [preguntaId], references: [id])
+  pregunta      PreguntaPostulacion @relation(fields: [preguntaId], references: [id], onDelete: Cascade)
   respuesta     String
 }
 

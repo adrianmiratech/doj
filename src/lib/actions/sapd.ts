@@ -46,7 +46,7 @@ export async function crearAgenteSapd(formData: FormData) {
     },
   });
 
-  await sincronizarMiembroDiscord(agente.discordId, "SAPD", `${nombre} ${apellidos}`);
+  await sincronizarMiembroDiscord(prisma, agente.discordId, "SAPD", `${nombre} ${apellidos}`);
   await notificarDiscord(
     agente.discordId,
     `👮 Has sido dado de alta como **SAPD**.\nPortal: inicia sesión con tu correo.\nCorreo: ${email}`,
@@ -84,7 +84,7 @@ export async function retirarAccesoSapd(formData: FormData) {
   }
 
   await prisma.user.update({ where: { id }, data: { role: "CIVIL" } });
-  await sincronizarMiembroDiscord(usuario.discordId, "CIVIL");
+  await sincronizarMiembroDiscord(prisma, usuario.discordId, "CIVIL");
   await notificarDiscord(
     usuario.discordId,
     `⛔ Se te ha retirado el acceso al SAPD. Tu cuenta vuelve a ser ciudadana.`,

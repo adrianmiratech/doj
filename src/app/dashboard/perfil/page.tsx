@@ -27,7 +27,7 @@ export default async function PerfilStaffPage() {
         <Row label="Correo" value={user.email} />
         <Row label="Rol" value={ROLE_LABELS[user.role]} />
         <Row label="Cargo" value={user.cargo ?? "—"} />
-        <Row label="Legajo" value={user.legajo ?? "—"} />
+        <Row label="Placa" value={user.legajo ? `#${user.legajo}` : "—"} />
       </div>
 
       <div className="rounded-lg border border-border bg-surface p-5">

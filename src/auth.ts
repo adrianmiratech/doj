@@ -6,31 +6,14 @@ import { authConfig } from "@/auth.config";
 import { enviarLogDiscord, avisarOwnerDiscord } from "@/lib/discord-logs";
 import { ROLE_LABELS } from "@/lib/labels";
 import { verificarCodigoTotp } from "@/lib/totp";
-
-// Protección anti-fuerza-bruta: intentos fallidos por correo en memoria (el
-// proceso de la web es de un único servidor, no hace falta persistirlos).
-const INTENTOS_MAX = 5;
-const VENTANA_INTENTOS_MS = 15 * 60_000;
-const BLOQUEO_MS = 15 * 60_000;
-const intentosFallidos = new Map<string, number[]>();
-
-function registrarIntentoFallido(email: string): number {
-  const ahora = Date.now();
-  const lista = (intentosFallidos.get(email) ?? []).filter((t) => ahora - t < VENTANA_INTENTOS_MS);
-  lista.push(ahora);
-  intentosFallidos.set(email, lista);
-  return lista.length;
-}
-
-function ipDe(request: Request): string {
-  return request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? request.headers.get("x-real-ip") ?? "desconocida";
-}
-
-function registrarAcceso(email: string, ip: string, exito: boolean, motivo: string, userId?: string) {
-  prisma.accesoLog
-    .create({ data: { email, ip, exito, motivo, userId: userId ?? null } })
-    .catch((error) => console.error("[accesos] Error guardando AccesoLog:", error));
-}
+import {
+  INTENTOS_MAX,
+  BLOQUEO_MS,
+  registrarIntentoFallido,
+  limpiarIntentosFallidos,
+  registrarAcceso,
+  ipDeRequest,
+} from "@/lib/login-security";
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
   ...authConfig,
@@ -74,11 +57,15 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         }
 
         const correo = email.toLowerCase().trim();
-        const ip = ipDe(request);
+        const ip = ipDeRequest(request);
 
         const user = await prisma.user.findUnique({ where: { email: correo } });
-        if (!user || !user.activo) {
+        if (!user) {
           registrarAcceso(correo, ip, false, "usuario_no_encontrado");
+          return null;
+        }
+        if (!user.activo) {
+          registrarAcceso(correo, ip, false, "cuenta_inhabilitada", user.id);
           return null;
         }
         if (user.suspendidoHasta && user.suspendidoHasta.getTime() > Date.now()) {
@@ -103,13 +90,15 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
             const hasta = new Date(Date.now() + BLOQUEO_MS);
             await prisma.user.update({ where: { id: user.id }, data: { suspendidoHasta: hasta } });
             await avisarOwnerDiscord(
+              prisma,
               `Posible ataque de fuerza bruta: **${correo}** (${user.nombre} ${user.apellidos}) tuvo ${intentos} logins fallidos seguidos desde \`${ip}\`. Cuenta bloqueada temporalmente hasta las ${hasta.toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" })}.`,
+              { email: correo, ip },
             );
           }
           return null;
         }
 
-        intentosFallidos.delete(correo);
+        limpiarIntentosFallidos(correo);
         registrarAcceso(correo, ip, true, "ok", user.id);
         await prisma.user.update({ where: { id: user.id }, data: { ultimoAcceso: new Date() } });
         await enviarLogDiscord(

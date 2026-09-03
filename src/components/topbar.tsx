@@ -20,10 +20,6 @@ export function Topbar({
 
   return (
     <div className="sticky top-0 z-10 shrink-0">
-      <div className="h-6 bg-navy text-white text-[11px] flex items-center justify-center gap-1.5">
-        <Scale className="h-3 w-3" />
-        Sitio oficial del Departamento de Justicia · Old State RP
-      </div>
       <header className="h-14 border-b-2 border-accent bg-navy-2 flex items-center justify-between px-6">
         <div className="flex items-center gap-2.5">
           <div className="h-8 w-8 rounded-full bg-white/10 border border-white/30 flex items-center justify-center">

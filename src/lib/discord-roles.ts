@@ -1,4 +1,5 @@
 import { ROLE_LABELS } from "./labels";
+import type { Role } from "../generated/prisma/enums";
 
 const API = "https://discord.com/api/v10";
 
@@ -9,7 +10,18 @@ const ROL_FISCALES_ID = "1541395898368659526";
 // Rol "STAFF OLD RP": distintivo general para cualquier miembro del personal
 // (Justicia o SAPD), independientemente de su rango concreto. Ya existe en
 // Discord (no lo crea el bot); solo se concede o se retira segun corresponda.
-const ROL_STAFF_ID = "1541444543252267178";
+export const ROL_STAFF_ID = "1541444543252267178";
+
+type PrismaLike = {
+  rolDiscordId: {
+    findUnique: (args: { where: { role: Role } }) => Promise<{ role: Role; discordRoleId: string } | null>;
+    upsert: (args: {
+      where: { role: Role };
+      create: { role: Role; discordRoleId: string };
+      update: { discordRoleId: string };
+    }) => Promise<unknown>;
+  };
+};
 
 function headers() {
   return {
@@ -49,22 +61,60 @@ async function obtenerRolesGuild(guildId: string): Promise<{ id: string; name: s
   }
 }
 
+/**
+ * Resuelve el ID de Discord del rol de un rango, priorizando el guardado en
+ * RolDiscordId (no depende del nombre del rol en Discord). Si no hay uno
+ * guardado, busca por nombre exacto o que lo contenga (por si tiene emoji u
+ * otra decoración) y lo guarda para no tener que volver a buscarlo. Devuelve
+ * null si el rol no existe todavía en Discord (hay que crearlo).
+ */
+async function resolverRolId(prisma: PrismaLike, guildId: string, roleKey: string): Promise<string | null> {
+  const role = roleKey as Role;
+  const guardado = await prisma.rolDiscordId.findUnique({ where: { role } });
+  const nombre = ROLE_LABELS[roleKey];
+  const existentes = await obtenerRolesGuild(guildId);
+
+  if (guardado && existentes.some((r) => r.id === guardado.discordRoleId)) {
+    return guardado.discordRoleId;
+  }
+
+  const encontrado = existentes.find((r) => r.name === nombre) ?? existentes.find((r) => r.name.includes(nombre));
+  if (!encontrado) return null;
+
+  await prisma.rolDiscordId.upsert({
+    where: { role },
+    create: { role, discordRoleId: encontrado.id },
+    update: { discordRoleId: encontrado.id },
+  });
+  return encontrado.id;
+}
+
 /** Crea en Discord (si faltan) un rol por cada rango del sistema, incluyendo Civil. Segura de llamar varias veces. */
-export async function asegurarRolesDiscord() {
+export async function asegurarRolesDiscord(prisma: PrismaLike) {
   const guildId = await resolverGuildId();
   if (!guildId) return;
 
-  const existentes = await obtenerRolesGuild(guildId);
-  for (const nombre of Object.values(ROLE_LABELS)) {
-    if (existentes.some((r) => r.name === nombre)) continue;
+  for (const [roleKey, nombre] of Object.entries(ROLE_LABELS)) {
+    const id = await resolverRolId(prisma, guildId, roleKey);
+    if (id) continue;
+
     try {
       const res = await fetch(`${API}/guilds/${guildId}/roles`, {
         method: "POST",
         headers: headers(),
         body: JSON.stringify({ name: nombre, mentionable: true }),
       });
-      if (res.ok) console.log(`[discord] Rol creado: ${nombre}`);
-      else console.error(`[discord] No se pudo crear el rol "${nombre}":`, await res.text());
+      if (res.ok) {
+        const rol = (await res.json()) as { id: string };
+        await prisma.rolDiscordId.upsert({
+          where: { role: roleKey as Role },
+          create: { role: roleKey as Role, discordRoleId: rol.id },
+          update: { discordRoleId: rol.id },
+        });
+        console.log(`[discord] Rol creado: ${nombre}`);
+      } else {
+        console.error(`[discord] No se pudo crear el rol "${nombre}":`, await res.text());
+      }
     } catch (error) {
       console.error(`[discord] Error creando el rol "${nombre}":`, error);
     }
@@ -78,6 +128,7 @@ export async function asegurarRolesDiscord() {
  * No falla la operación llamante si Discord no responde: solo registra el error.
  */
 export async function sincronizarMiembroDiscord(
+  prisma: PrismaLike,
   discordId: string | null | undefined,
   roleKey: string,
   nick?: string | null,
@@ -93,11 +144,12 @@ export async function sincronizarMiembroDiscord(
     if (!memberRes.ok) return;
     const member = (await memberRes.json()) as { roles: string[] };
 
-    const rolesGuild = await obtenerRolesGuild(guildId);
-    const idsDeRangos = new Set(
-      rolesGuild.filter((r) => Object.values(ROLE_LABELS).includes(r.name)).map((r) => r.id),
-    );
-    const idNuevoRol = rolesGuild.find((r) => r.name === ROLE_LABELS[roleKey])?.id;
+    const idsDeRangos = new Set<string>();
+    for (const key of Object.keys(ROLE_LABELS)) {
+      const id = await resolverRolId(prisma, guildId, key);
+      if (id) idsDeRangos.add(id);
+    }
+    const idNuevoRol = await resolverRolId(prisma, guildId, roleKey);
 
     const rolesFinales = member.roles.filter((id) => !idsDeRangos.has(id));
     if (idNuevoRol) rolesFinales.push(idNuevoRol);

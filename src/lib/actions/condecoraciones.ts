@@ -30,4 +30,5 @@ export async function ajustarProgresoMedalla(formData: FormData) {
   });
 
   revalidatePath("/dashboard/condecoraciones");
+  revalidatePath("/dashboard/empleados");
 }

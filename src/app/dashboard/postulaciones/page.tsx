@@ -5,7 +5,9 @@ import { StatusBadge } from "@/components/status-badge";
 import { ESTADO_POSTULACION_COLORS, ESTADO_POSTULACION_LABELS, POSTULABLE_ROLES, ROLE_LABELS } from "@/lib/labels";
 import {
   alternarActivaPreguntaPostulacion,
+  eliminarPreguntaPostulacion,
   aprobarPostulacion,
+  abrirTicketPostulacion,
   crearPreguntaPostulacion,
   rechazarPostulacion,
 } from "@/lib/actions/postulaciones";
@@ -50,15 +52,26 @@ export default async function PostulacionesAdminPage() {
                   .map((p) => (
                     <li key={p.id} className="flex items-center justify-between gap-3 rounded-md border border-border bg-surface-2 px-3 py-2 text-xs">
                       <span className={p.activa ? "" : "text-text-muted line-through"}>{p.texto}</span>
-                      <form action={alternarActivaPreguntaPostulacion}>
-                        <input type="hidden" name="id" value={p.id} />
-                        <button
-                          type="submit"
-                          className="rounded-md border border-border px-2.5 py-1 text-xs font-medium hover:bg-surface-3 transition-colors shrink-0"
-                        >
-                          {p.activa ? "Desactivar" : "Activar"}
-                        </button>
-                      </form>
+                      <div className="flex gap-1.5 shrink-0">
+                        <form action={alternarActivaPreguntaPostulacion}>
+                          <input type="hidden" name="id" value={p.id} />
+                          <button
+                            type="submit"
+                            className="rounded-md border border-border px-2.5 py-1 text-xs font-medium hover:bg-surface-3 transition-colors"
+                          >
+                            {p.activa ? "Desactivar" : "Activar"}
+                          </button>
+                        </form>
+                        <form action={eliminarPreguntaPostulacion}>
+                          <input type="hidden" name="id" value={p.id} />
+                          <button
+                            type="submit"
+                            className="rounded-md border border-danger/40 text-danger px-2.5 py-1 text-xs font-medium hover:bg-danger/10 transition-colors"
+                          >
+                            Borrar
+                          </button>
+                        </form>
+                      </div>
                     </li>
                   ))}
               </ul>
@@ -116,8 +129,22 @@ export default async function PostulacionesAdminPage() {
               </p>
             ))}
 
-            <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto] gap-2">
-              <form action={aprobarPostulacion} className="contents">
+            <div>
+              <label className="block text-xs text-text-muted mb-1">
+                ID de Discord del candidato {!p.candidato.discordId && <span className="text-warning">(hace falta para poder aprobar)</span>}
+              </label>
+              <input
+                form={`aprobar-${p.id}`}
+                name="discordId"
+                defaultValue={p.candidato.discordId ?? ""}
+                placeholder="123456789012345678"
+                required
+                className="w-full rounded-md border border-border bg-surface-2 px-2.5 py-1.5 text-xs outline-none focus:border-accent font-mono mb-2"
+              />
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto_auto] gap-2">
+              <form id={`aprobar-${p.id}`} action={aprobarPostulacion} className="contents">
                 <input type="hidden" name="id" value={p.id} />
                 <input
                   name="cargo"
@@ -129,6 +156,16 @@ export default async function PostulacionesAdminPage() {
                   className="rounded-md bg-success px-3 py-1.5 text-xs font-medium text-white hover:opacity-90 transition-opacity"
                 >
                   Aprobar y contratar
+                </button>
+              </form>
+              <form action={abrirTicketPostulacion}>
+                <input type="hidden" name="id" value={p.id} />
+                <input type="hidden" name="discordId" value={p.candidato.discordId ?? ""} />
+                <button
+                  type="submit"
+                  className="w-full rounded-md border border-border px-3 py-1.5 text-xs font-medium hover:bg-surface-2 transition-colors"
+                >
+                  🎫 Abrir ticket
                 </button>
               </form>
             </div>

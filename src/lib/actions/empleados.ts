@@ -68,7 +68,7 @@ export async function crearEmpleado(formData: FormData) {
 
   await crearNominaInicial(prisma, empleado.id);
 
-  await sincronizarMiembroDiscord(empleado.discordId, role, `${nombre} ${apellidos} - #${legajo}`);
+  await sincronizarMiembroDiscord(prisma, empleado.discordId, role, `${nombre} ${apellidos} - #${legajo}`);
 
   await notificarDiscord(
     empleado.discordId,
@@ -161,7 +161,7 @@ export async function cambiarRangoEmpleado(formData: FormData) {
 
   await prisma.user.update({ where: { id }, data: { role } });
 
-  await sincronizarMiembroDiscord(empleado.discordId, role);
+  await sincronizarMiembroDiscord(prisma, empleado.discordId, role);
 
   await notificarDiscord(
     empleado.discordId,
@@ -187,7 +187,7 @@ export async function cambiarLegajoEmpleado(formData: FormData) {
 
   const empleado = await prisma.user.update({ where: { id }, data: { legajo } });
 
-  await sincronizarMiembroDiscord(empleado.discordId, empleado.role, `${empleado.nombre} ${empleado.apellidos} - #${legajo}`);
+  await sincronizarMiembroDiscord(prisma, empleado.discordId, empleado.role, `${empleado.nombre} ${empleado.apellidos} - #${legajo}`);
   await enviarLogDiscord(
     prisma,
     "empleados",

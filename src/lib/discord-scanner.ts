@@ -1,5 +1,5 @@
 import { AuditLogEvent, Events, PermissionFlagsBits, type Client, type Guild } from "discord.js";
-import { enviarLogDiscord } from "./discord-logs";
+import { enviarLogDiscord, alertaExenta } from "./discord-logs";
 
 type PrismaLike = Parameters<typeof enviarLogDiscord>[0];
 
@@ -29,22 +29,33 @@ function recortar(texto: string | null | undefined, max = 300) {
 }
 
 /** Busca en el registro de auditoría quién ejecutó una acción reciente. Requiere permiso "Ver registro de auditoría"; si falta, degrada a "desconocido". */
-async function ejecutorDe(guild: Guild, tipo: AuditLogEvent, objetivoId?: string): Promise<string> {
+async function ejecutorDe(guild: Guild, tipo: AuditLogEvent, objetivoId?: string): Promise<{ tag: string; id: string | null }> {
   try {
     const logs = await guild.fetchAuditLogs({ type: tipo, limit: 5 });
     const entrada = objetivoId ? logs.entries.find((e) => e.targetId === objetivoId) : logs.entries.first();
-    return entrada?.executor?.tag ?? "desconocido";
+    return { tag: entrada?.executor?.tag ?? "desconocido", id: entrada?.executor?.id ?? null };
   } catch {
-    return "desconocido";
+    return { tag: "desconocido", id: null };
   }
 }
 
-async function avisarOwner(client: Client, titulo: string, descripcion: string) {
+/**
+ * Avisa por DM (embed) al owner del servidor. Si `ejecutorId` está en la
+ * whitelist de pruebas (AlertaWhitelist), no envía nada — así las pruebas
+ * del propio equipo no generan falsas alarmas al owner.
+ */
+async function avisarOwner(client: Client, prisma: PrismaLike, titulo: string, descripcion: string, ejecutorId?: string | null) {
   const guild = client.guilds.cache.first();
   if (!guild) return;
   try {
+    if (ejecutorId && (await alertaExenta(prisma, { discordId: ejecutorId }))) {
+      console.log("[discord] Alerta al owner omitida (ejecutor en whitelist de pruebas).");
+      return;
+    }
     const owner = await guild.fetchOwner();
-    await owner.send(`🚨 **${titulo}**\n${descripcion}`);
+    await owner.send({
+      embeds: [{ title: `🚨 ${titulo}`, description: descripcion, color: 0xdc3545, timestamp: new Date().toISOString() }],
+    });
   } catch (error) {
     console.error("[discord] No se pudo avisar al owner por DM:", error);
   }
@@ -65,8 +76,10 @@ export function registrarEscaneoServidor(client: Client, prisma: PrismaLike, con
       log(`📢 **${message.author.tag}** mencionó a @everyone/@here en <#${message.channelId}>.`);
       avisarOwner(
         client,
+        prisma,
         "Mención masiva sospechosa",
         `${message.author.tag} mencionó a @everyone/@here en <#${message.channelId}>.\n${recortar(message.content)}`,
+        message.author.id,
       ).catch(console.error);
     }
   });
@@ -86,6 +99,7 @@ export function registrarEscaneoServidor(client: Client, prisma: PrismaLike, con
     if (cantidad >= UMBRAL_BORRADO_MASIVO) {
       avisarOwner(
         client,
+        prisma,
         "Borrado masivo de mensajes",
         `Se borraron ${cantidad} mensajes de golpe en <#${channel.id}>. Podría ser un intento de borrar evidencia o un ataque.`,
       ).catch(console.error);
@@ -109,15 +123,17 @@ export function registrarEscaneoServidor(client: Client, prisma: PrismaLike, con
     if (enVentana >= UMBRAL_RAID) {
       avisarOwner(
         client,
+        prisma,
         "Posible raid de entradas masivas",
         `${enVentana} cuentas se unieron al servidor en menos de ${VENTANA_RAID_MS / 1000}s. Última: ${member.user.tag}.`,
+        member.user.id,
       ).catch(console.error);
     }
   });
 
   client.on(Events.GuildMemberRemove, async (member) => {
-    const ejecutor = member.guild ? await ejecutorDe(member.guild, AuditLogEvent.MemberKick, member.id) : "desconocido";
-    const motivo = ejecutor !== "desconocido" ? `fue expulsado por **${ejecutor}**` : "salió del servidor";
+    const ejecutor = member.guild ? await ejecutorDe(member.guild, AuditLogEvent.MemberKick, member.id) : { tag: "desconocido", id: null };
+    const motivo = ejecutor.tag !== "desconocido" ? `fue expulsado por **${ejecutor.tag}**` : "salió del servidor";
     log(`📤 **${member.user?.tag ?? member.id}** ${motivo}.`);
   });
 
@@ -125,12 +141,14 @@ export function registrarEscaneoServidor(client: Client, prisma: PrismaLike, con
     const ahora = Date.now();
     const enVentana = registrarEnVentana(sanciones, ahora, VENTANA_SANCIONES_MS);
     const ejecutor = await ejecutorDe(ban.guild, AuditLogEvent.MemberBanAdd, ban.user.id);
-    log(`🔨 **${ban.user.tag}** fue baneado por **${ejecutor}**.`);
+    log(`🔨 **${ban.user.tag}** fue baneado por **${ejecutor.tag}**.`);
     if (enVentana >= UMBRAL_SANCIONES) {
       await avisarOwner(
         client,
+        prisma,
         "Cadena de baneos",
-        `${enVentana} baneos en menos de ${VENTANA_SANCIONES_MS / 1000}s. Último: ${ban.user.tag} (por ${ejecutor}).`,
+        `${enVentana} baneos en menos de ${VENTANA_SANCIONES_MS / 1000}s. Último: ${ban.user.tag} (por ${ejecutor.tag}).`,
+        ejecutor.id,
       );
     }
   });
@@ -141,7 +159,7 @@ export function registrarEscaneoServidor(client: Client, prisma: PrismaLike, con
 
   client.on(Events.ChannelCreate, async (channel) => {
     const ejecutor = await ejecutorDe(channel.guild, AuditLogEvent.ChannelCreate, channel.id);
-    log(`📁 Canal **#${channel.name}** creado por **${ejecutor}**.`);
+    log(`📁 Canal **#${channel.name}** creado por **${ejecutor.tag}**.`);
   });
 
   client.on(Events.ChannelDelete, async (channel) => {
@@ -149,12 +167,14 @@ export function registrarEscaneoServidor(client: Client, prisma: PrismaLike, con
     const ahora = Date.now();
     const enVentana = registrarEnVentana(borradosEstructura, ahora, VENTANA_NUKE_MS);
     const ejecutor = await ejecutorDe(channel.guild, AuditLogEvent.ChannelDelete);
-    log(`📁 Canal **#${channel.name}** borrado por **${ejecutor}**.`);
+    log(`📁 Canal **#${channel.name}** borrado por **${ejecutor.tag}**.`);
     if (enVentana >= UMBRAL_NUKE) {
       await avisarOwner(
         client,
+        prisma,
         "Posible nuke del servidor",
-        `${enVentana} canales/roles borrados en menos de ${VENTANA_NUKE_MS / 1000}s. Último ejecutor detectado: ${ejecutor}.`,
+        `${enVentana} canales/roles borrados en menos de ${VENTANA_NUKE_MS / 1000}s. Último ejecutor detectado: ${ejecutor.tag}.`,
+        ejecutor.id,
       );
     }
   });
@@ -162,12 +182,14 @@ export function registrarEscaneoServidor(client: Client, prisma: PrismaLike, con
   client.on(Events.GuildRoleCreate, async (role) => {
     const ejecutor = await ejecutorDe(role.guild, AuditLogEvent.RoleCreate, role.id);
     const peligroso = role.permissions.has(PermissionFlagsBits.Administrator);
-    log(`🏷️ Rol **${role.name}** creado por **${ejecutor}**${peligroso ? " ⚠️ *(con permiso de Administrador)*" : ""}.`);
+    log(`🏷️ Rol **${role.name}** creado por **${ejecutor.tag}**${peligroso ? " ⚠️ *(con permiso de Administrador)*" : ""}.`);
     if (peligroso) {
       await avisarOwner(
         client,
+        prisma,
         "Rol con permisos de Administrador creado",
-        `Se creó el rol **${role.name}** con permiso de Administrador. Ejecutor: ${ejecutor}.`,
+        `Se creó el rol **${role.name}** con permiso de Administrador. Ejecutor: ${ejecutor.tag}.`,
+        ejecutor.id,
       );
     }
   });
@@ -176,12 +198,14 @@ export function registrarEscaneoServidor(client: Client, prisma: PrismaLike, con
     const ahora = Date.now();
     const enVentana = registrarEnVentana(borradosEstructura, ahora, VENTANA_NUKE_MS);
     const ejecutor = await ejecutorDe(role.guild, AuditLogEvent.RoleDelete);
-    log(`🏷️ Rol **${role.name}** borrado por **${ejecutor}**.`);
+    log(`🏷️ Rol **${role.name}** borrado por **${ejecutor.tag}**.`);
     if (enVentana >= UMBRAL_NUKE) {
       await avisarOwner(
         client,
+        prisma,
         "Posible nuke del servidor",
-        `${enVentana} canales/roles borrados en menos de ${VENTANA_NUKE_MS / 1000}s. Último ejecutor detectado: ${ejecutor}.`,
+        `${enVentana} canales/roles borrados en menos de ${VENTANA_NUKE_MS / 1000}s. Último ejecutor detectado: ${ejecutor.tag}.`,
+        ejecutor.id,
       );
     }
   });

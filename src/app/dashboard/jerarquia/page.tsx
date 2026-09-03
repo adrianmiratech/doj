@@ -1,6 +1,7 @@
-import { Layers, Users } from "lucide-react";
+import { Layers, Users, ShieldCheck, Star } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { ROLE_LABELS, ROLE_ORDER, ROLE_TIER_LABELS, STAFF_ROLES } from "@/lib/labels";
+import { Avatar } from "@/components/avatar";
 import type { Role } from "@/generated/prisma/enums";
 
 export default async function JerarquiaPage() {
@@ -32,49 +33,59 @@ export default async function JerarquiaPage() {
           <p className="text-xs text-text-muted">Rangos ocupados</p>
         </div>
         <div className="rounded-lg border border-border bg-surface p-4">
+          <Star className="h-5 w-5 text-accent mb-1" />
           <p className="text-xl font-semibold">{mandos}</p>
           <p className="text-xs text-text-muted">Mandos</p>
         </div>
         <div className="rounded-lg border border-border bg-surface p-4">
+          <ShieldCheck className="h-5 w-5 text-success mb-1" />
           <p className="text-xl font-semibold text-success">{activos.length}</p>
           <p className="text-xs text-text-muted">Activos</p>
         </div>
       </div>
 
-      <div className="space-y-8">
-        {ROLE_ORDER.map((rango) => {
+      <div className="space-y-6">
+        {ROLE_ORDER.map((rango, i) => {
           const miembros = empleados.filter((e) => e.role === rango);
           if (miembros.length === 0) return null;
+          const esMando = i < 2;
           return (
-            <div key={rango}>
-              <div className="flex items-center justify-between border-b border-border pb-2 mb-4">
+            <div
+              key={rango}
+              className={`rounded-lg border bg-surface overflow-hidden ${esMando ? "border-accent/40" : "border-border"}`}
+            >
+              <div
+                className={`flex items-center justify-between px-5 py-3 border-l-4 ${
+                  esMando ? "border-l-accent bg-accent/[0.06]" : "border-l-border"
+                }`}
+              >
                 <div>
-                  <p className="text-xs text-accent uppercase tracking-wider font-semibold">
+                  <p className="text-[11px] text-accent uppercase tracking-wider font-semibold">
                     {ROLE_TIER_LABELS[rango]}
                   </p>
-                  <h2 className="text-lg font-semibold">{ROLE_LABELS[rango]}</h2>
+                  <h2 className="text-base font-bold">{ROLE_LABELS[rango]}</h2>
                 </div>
-                <span className="text-sm text-text-muted">{miembros.length} miembro(s)</span>
+                <span className="text-xs text-text-muted shrink-0">{miembros.length} miembro(s)</span>
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 p-4">
                 {miembros.map((m) => (
-                  <div key={m.id} className="rounded-lg border border-border bg-surface p-4">
+                  <div key={m.id} className="rounded-md border border-border bg-surface-2 p-3">
                     <div className="flex items-center gap-3">
-                      <div className="h-10 w-10 rounded-full bg-surface-3 border border-border flex items-center justify-center text-xs font-semibold shrink-0">
-                        {m.nombre[0]}
-                        {m.apellidos[0]}
+                      <div className="h-10 w-10 rounded-full border border-border shrink-0 overflow-hidden">
+                        <Avatar url={m.avatarUrl} />
                       </div>
                       <div className="min-w-0">
                         <p className="text-sm font-medium truncate">
                           {m.nombre} {m.apellidos}
                         </p>
-                        <p className="text-xs text-text-muted">Placa #{m.legajo}</p>
+                        <p className="text-xs text-text-muted font-mono">Placa #{m.legajo}</p>
                       </div>
                       <span
+                        title={m.activo ? "Activo" : "Inactivo"}
                         className={`ml-auto h-2 w-2 rounded-full shrink-0 ${m.activo ? "bg-success" : "bg-text-muted"}`}
                       />
                     </div>
-                    {m.cargo && <p className="mt-2 text-xs text-text-muted">{m.cargo}</p>}
+                    {m.cargo && <p className="mt-2 text-xs text-text-muted border-t border-border pt-2">{m.cargo}</p>}
                   </div>
                 ))}
               </div>

@@ -1,10 +1,11 @@
 import type { PrismaClient } from "../generated/prisma/client";
 import { resolverGuildId } from "./discord-roles";
 
-type PrismaLike = Pick<InstanceType<typeof PrismaClient>, "canalLog">;
+type PrismaLike = Pick<InstanceType<typeof PrismaClient>, "canalLog" | "alertaWhitelist">;
 
 const API = "https://discord.com/api/v10";
 const CATEGORIA_LOGS_ID = process.env.DISCORD_LOG_CATEGORY_ID ?? "1541387105098534962";
+const COLOR_DOJ = 0xc9a227;
 
 function headers() {
   return {
@@ -73,7 +74,7 @@ export async function asegurarCanalesLogDiscord(prisma: PrismaLike) {
   }
 }
 
-/** Publica una línea de auditoría en el canal de logs del tipo indicado. No falla la acción llamante si Discord no responde. */
+/** Publica una línea de auditoría (como embed) en el canal de logs del tipo indicado. No falla la acción llamante si Discord no responde. */
 export async function enviarLogDiscord(prisma: PrismaLike, tipo: TipoLog, mensaje: string) {
   if (!process.env.DISCORD_TOKEN) return;
   try {
@@ -82,7 +83,9 @@ export async function enviarLogDiscord(prisma: PrismaLike, tipo: TipoLog, mensaj
     const res = await fetch(`${API}/channels/${channelId}/messages`, {
       method: "POST",
       headers: headers(),
-      body: JSON.stringify({ content: mensaje }),
+      body: JSON.stringify({
+        embeds: [{ description: mensaje, color: COLOR_DOJ, timestamp: new Date().toISOString() }],
+      }),
     });
     if (!res.ok) console.error("[discord] No se pudo enviar el log:", await res.text());
   } catch (error) {
@@ -90,14 +93,39 @@ export async function enviarLogDiscord(prisma: PrismaLike, tipo: TipoLog, mensaj
   }
 }
 
+/** Contexto de quién/qué disparó una alerta, para poder eximirla si está en la whitelist de pruebas. */
+type ContextoAlerta = { email?: string | null; ip?: string | null; discordId?: string | null };
+
+/** Si el email, IP o ID de Discord del contexto está en la whitelist de pruebas (AlertaWhitelist). */
+export async function alertaExenta(prisma: PrismaLike, contexto: ContextoAlerta): Promise<boolean> {
+  const pares: [string, string][] = [];
+  if (contexto.email) pares.push(["email", contexto.email.toLowerCase()]);
+  if (contexto.ip) pares.push(["ip", contexto.ip]);
+  if (contexto.discordId) pares.push(["discord_id", contexto.discordId]);
+  if (pares.length === 0) return false;
+
+  for (const [tipo, valor] of pares) {
+    const fila = await prisma.alertaWhitelist.findUnique({ where: { tipo_valor: { tipo, valor } } });
+    if (fila) return true;
+  }
+  return false;
+}
+
 /**
- * Avisa por mensaje privado al owner del servidor de Discord (vía REST, sin
- * necesitar el proceso del bot conectado por gateway — sirve desde la propia
- * web, p. ej. tras detectar un posible ataque de fuerza bruta en el login).
+ * Avisa por mensaje privado (embed) al owner del servidor de Discord (vía
+ * REST, sin necesitar el proceso del bot conectado por gateway). Reservado
+ * para alertas altamente urgentes (fuerza bruta, raid, nuke...); si el
+ * contexto (email/IP/ID de Discord) está en la whitelist de pruebas, no
+ * envía nada — así las pruebas del propio equipo no generan falsas alarmas.
  */
-export async function avisarOwnerDiscord(mensaje: string) {
+export async function avisarOwnerDiscord(prisma: PrismaLike, mensaje: string, contexto?: ContextoAlerta) {
   if (!process.env.DISCORD_TOKEN) return;
   try {
+    if (contexto && (await alertaExenta(prisma, contexto))) {
+      console.log("[discord] Alerta al owner omitida (contexto en whitelist de pruebas).");
+      return;
+    }
+
     const guildId = await resolverGuildId();
     if (!guildId) return;
 
@@ -116,7 +144,16 @@ export async function avisarOwnerDiscord(mensaje: string) {
     const msgRes = await fetch(`${API}/channels/${dm.id}/messages`, {
       method: "POST",
       headers: headers(),
-      body: JSON.stringify({ content: `🚨 ${mensaje}` }),
+      body: JSON.stringify({
+        embeds: [
+          {
+            title: "🚨 Alerta de seguridad urgente",
+            description: mensaje,
+            color: 0xdc3545,
+            timestamp: new Date().toISOString(),
+          },
+        ],
+      }),
     });
     if (!msgRes.ok) console.error("[discord] No se pudo avisar al owner por DM:", await msgRes.text());
   } catch (error) {

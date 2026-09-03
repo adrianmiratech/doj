@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { formatUltimoAcceso } from "@/lib/fecha";
+import { Avatar } from "@/components/avatar";
 import {
   ESTADO_FALTA_COLORS,
   ESTADO_FALTA_LABELS,
@@ -27,6 +28,7 @@ import {
   subirFotoEmpleado,
   suspenderEmpleadoTemporal,
 } from "@/lib/actions/empleados";
+import { ajustarProgresoMedalla } from "@/lib/actions/condecoraciones";
 import type { Role } from "@/generated/prisma/enums";
 
 export default async function EmpleadosPage() {
@@ -37,13 +39,17 @@ export default async function EmpleadosPage() {
     redirect("/dashboard");
   }
 
-  const empleadosRaw = await prisma.user.findMany({
-    where: { role: { in: STAFF_ROLES as unknown as Role[] } },
-    include: {
-      faltasRecibidas: { orderBy: { createdAt: "desc" } },
-      contratosLaborales: { where: { estado: { in: ["ACTIVO", "PENDIENTE_FIRMA"] } } },
-    },
-  });
+  const [empleadosRaw, medallas] = await Promise.all([
+    prisma.user.findMany({
+      where: { role: { in: STAFF_ROLES as unknown as Role[] } },
+      include: {
+        faltasRecibidas: { orderBy: { createdAt: "desc" } },
+        contratosLaborales: { where: { estado: { in: ["ACTIVO", "PENDIENTE_FIRMA"] } } },
+        medallaProgresos: true,
+      },
+    }),
+    prisma.medalla.findMany({ orderBy: { nombre: "asc" } }),
+  ]);
 
   const empleados = empleadosRaw.sort((a, b) => ROLE_ORDER.indexOf(a.role) - ROLE_ORDER.indexOf(b.role));
   const ahora = Date.now();
@@ -135,15 +141,9 @@ export default async function EmpleadosPage() {
             <details key={e.id} className="group px-5 py-3.5">
               <summary className="flex flex-wrap items-center justify-between gap-3 cursor-pointer list-none">
                 <div className="flex items-center gap-3 min-w-0">
-                  {e.avatarUrl ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={e.avatarUrl} alt="" className="h-9 w-9 rounded-full object-cover border border-border shrink-0" />
-                  ) : (
-                    <div className="h-9 w-9 rounded-full bg-surface-3 border border-border flex items-center justify-center text-xs font-semibold shrink-0">
-                      {e.nombre[0]}
-                      {e.apellidos[0]}
-                    </div>
-                  )}
+                  <div className="h-9 w-9 rounded-full border border-border shrink-0 overflow-hidden">
+                    <Avatar url={e.avatarUrl} />
+                  </div>
                   <div className="min-w-0">
                     <p className="text-sm font-medium">
                       {e.nombre} {e.apellidos}{" "}
@@ -321,6 +321,37 @@ export default async function EmpleadosPage() {
                       Imponer falta
                     </button>
                   </form>
+                </FieldGroup>
+
+                <FieldGroup titulo="Condecoraciones">
+                  <ul className="space-y-1.5">
+                    {medallas.map((m) => {
+                      const progresoActual = e.medallaProgresos.find((mp) => mp.medallaId === m.id);
+                      return (
+                        <li key={m.id} className="flex items-center gap-2 text-xs">
+                          <span className={`flex-1 truncate ${progresoActual?.conseguida ? "text-accent font-medium" : "text-text-muted"}`}>
+                            {progresoActual?.conseguida ? "🏅 " : ""}
+                            {m.nombre}
+                          </span>
+                          <form action={ajustarProgresoMedalla} className="flex items-center gap-1 shrink-0">
+                            <input type="hidden" name="userId" value={e.id} />
+                            <input type="hidden" name="medallaId" value={m.id} />
+                            <input
+                              name="progreso"
+                              type="number"
+                              min={0}
+                              max={m.objetivo}
+                              defaultValue={progresoActual?.progreso ?? 0}
+                              className="w-14 rounded-md border border-border bg-surface-2 px-1.5 py-1 text-xs outline-none focus:border-accent"
+                            />
+                            <span className="text-text-muted">/ {m.objetivo}</span>
+                            <SmallButton>Guardar</SmallButton>
+                          </form>
+                        </li>
+                      );
+                    })}
+                    {medallas.length === 0 && <li className="text-xs text-text-muted">No hay condecoraciones creadas todavía.</li>}
+                  </ul>
                 </FieldGroup>
 
                 <FieldGroup titulo="Acceso a la cuenta" className="lg:col-span-2">

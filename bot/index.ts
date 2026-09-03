@@ -161,7 +161,7 @@ async function manejarContratar(interaction: Interaction) {
     });
     await crearNominaInicial(prisma, empleado.id);
 
-    await sincronizarMiembroDiscord(discordUser.id, rango, `${nombre} ${apellidos} - #${legajo}`);
+    await sincronizarMiembroDiscord(prisma, discordUser.id, rango, `${nombre} ${apellidos} - #${legajo}`);
 
     await enviarLogDiscord(
       prisma,
@@ -235,7 +235,7 @@ async function manejarEncargadoSapd(interaction: Interaction) {
       },
     });
 
-    await sincronizarMiembroDiscord(discordUser.id, "ENCARGADO_SAPD", `${nombre} ${apellidos}`);
+    await sincronizarMiembroDiscord(prisma, discordUser.id, "ENCARGADO_SAPD", `${nombre} ${apellidos}`);
     await enviarLogDiscord(
       prisma,
       "empleados",
@@ -527,7 +527,7 @@ function registrarHandlers(c: Client, escucharCambiosDeRol: boolean, contenidoDi
   c.once("clientReady", async () => {
     console.log(`Bot conectado como ${c.user?.tag}`);
     await registrarComandos();
-    await asegurarRolesDiscord();
+    await asegurarRolesDiscord(prisma);
     await asegurarCanalesLogDiscord(prisma);
     await asegurarNombreBot(c);
     await asegurarPanelVerificacion(c);

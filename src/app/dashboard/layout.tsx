@@ -103,6 +103,8 @@ export default async function DashboardLayout({ children }: { children: React.Re
         { href: "/dashboard/postulaciones", label: "Postulaciones", icon: "postulaciones" },
         ...(esJuezSupremo ? [{ href: "/dashboard/permisos", label: "Permisos", icon: "permisos" as const }] : []),
         ...(esJuezSupremo ? [{ href: "/dashboard/accesos", label: "Registros de acceso", icon: "accesos" as const }] : []),
+        ...(esJuezSupremo ? [{ href: "/dashboard/seguridad", label: "Seguridad del bot", icon: "seguridad" as const }] : []),
+        ...(esJuezSupremo ? [{ href: "/dashboard/rendimiento", label: "Rendimiento", icon: "rendimiento" as const }] : []),
       ],
     });
   }
@@ -124,7 +126,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
         notificacionesNoLeidas={notificacionesNoLeidas}
       />
       <div className="flex-1 flex">
-        <aside className="w-60 shrink-0 border-r border-border bg-surface hidden md:flex md:flex-col sticky top-20 h-[calc(100vh-5rem)] self-start">
+        <aside className="w-60 shrink-0 border-r border-border bg-surface hidden md:flex md:flex-col sticky top-14 h-[calc(100vh-3.5rem)] self-start">
           <div className="flex-1 overflow-y-auto p-3">
             <SidebarNav sections={seccionesVisibles} />
           </div>
