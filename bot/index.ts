@@ -15,6 +15,8 @@ import {
   type Interaction,
   type GuildMember,
   type PartialGuildMember,
+  type Message,
+  type PartialMessage,
 } from "discord.js";
 import bcrypt from "bcryptjs";
 import cron from "node-cron";
@@ -48,6 +50,7 @@ const CANAL_ALERTA_4H_ID = "1541395639781564529";
 const HORAS_ALERTA_SERVICIO = 4;
 const BOTON_VERIFICAR_ID = "verificar_civil";
 const CANAL_BIENVENIDA_ID = "1541360682635632762";
+const CANAL_SUGERENCIAS_ID = "1541396617079558164";
 const CANAL_PANEL_TICKETS_ID = "1541401067294687262";
 const CATEGORIA_TICKETS_ID = "1541401110684893254";
 const BOTON_ABRIR_TICKET_ID = "abrir_ticket";
@@ -721,6 +724,33 @@ async function manejarBotonCerrarTicket(interaction: Interaction) {
 }
 
 /**
+ * El canal de sugerencias de Discord está vinculado con el buzón de la web:
+ * lo que se publique aquí (por una persona, no por el propio bot) se guarda
+ * también como Feedback. En el otro sentido, `enviarFeedback` (web) publica
+ * en este mismo canal al crear una sugerencia/queja.
+ */
+async function manejarMensajeSugerencia(message: Message | PartialMessage) {
+  if (message.channel.id !== CANAL_SUGERENCIAS_ID) return;
+  if (message.author?.bot) return;
+  const contenido = message.content?.trim();
+  if (!contenido) return;
+
+  try {
+    const autor = message.author ? await prisma.user.findFirst({ where: { discordId: message.author.id } }) : null;
+    await prisma.feedback.create({
+      data: {
+        tipo: "Sugerencia",
+        contenido: autor ? contenido : `(Discord: ${message.author?.tag ?? "desconocido"}) ${contenido}`,
+        anonimo: false,
+        autorId: autor?.id ?? null,
+      },
+    });
+  } catch (error) {
+    console.error("[discord] Error guardando sugerencia desde Discord:", error);
+  }
+}
+
+/**
  * Cuando alguien cambia manualmente los roles de rango de un miembro en
  * Discord, refleja el cambio en la web (bidireccional con `cambiarRangoEmpleado`
  * / `crearEmpleado`, que hacen lo mismo en sentido web → Discord).
@@ -771,6 +801,12 @@ function registrarHandlers(c: Client, escucharCambiosDeRol: boolean, contenidoDi
     manejarBotonReclamarTicket(interaction).catch(console.error);
     manejarBotonCerrarTicket(interaction).catch(console.error);
   });
+
+  if (contenidoDisponible) {
+    c.on("messageCreate", (message) => {
+      manejarMensajeSugerencia(message).catch(console.error);
+    });
+  }
 
   if (escucharCambiosDeRol) {
     c.on("guildMemberUpdate", (oldMember, newMember) => {

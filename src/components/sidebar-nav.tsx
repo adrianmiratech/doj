@@ -36,6 +36,7 @@ import {
   Gauge,
   Printer,
   UserCog,
+  MessageCircle,
 } from "lucide-react";
 
 const ICONS = {
@@ -72,6 +73,7 @@ const ICONS = {
   rendimiento: Gauge,
   documentos: Printer,
   staff: UserCog,
+  mensajeria: MessageCircle,
 } as const;
 
 export type IconName = keyof typeof ICONS;

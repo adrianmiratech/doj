@@ -19,8 +19,7 @@ export function Avatar({
   const iniciales = `${nombre[0] ?? ""}${apellidos[0] ?? ""}`.toUpperCase() || "?";
   return (
     <div
-      className={`h-full w-full flex items-center justify-center bg-accent/15 text-accent font-semibold ${className}`}
-      style={{ fontSize: "38%" }}
+      className={`h-full w-full flex items-center justify-center bg-accent/15 text-accent text-sm font-semibold ${className}`}
     >
       {iniciales}
     </div>

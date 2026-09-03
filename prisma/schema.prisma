@@ -147,6 +147,8 @@ model User {
   plantillasExamenCreadas PlantillaExamen[]
   informes             Informe[]
   feedbacks            Feedback[]
+  conversaciones       ConversacionParticipante[]
+  mensajesEnviados     Mensaje[]                  @relation("MensajeAutor")
   casosComoParte       CasoParte[]
   postulaciones        Postulacion[] @relation("PostulacionCandidato")
   postulacionesRevisadas Postulacion[] @relation("PostulacionRevisor")
@@ -436,6 +438,38 @@ model Etiqueta {
   id       String    @id @default(cuid())
   nombre   String    @unique
   informes Informe[]
+}
+
+// Mensajeria interna del personal: un grupo general (todo el personal) y
+// conversaciones privadas 1 a 1 entre companeros.
+model Conversacion {
+  id            String   @id @default(cuid())
+  tipo          String // "GRUPO" | "PRIVADO"
+  nombre        String? // solo se usa para GRUPO
+  createdAt     DateTime @default(now())
+  participantes ConversacionParticipante[]
+  mensajes      Mensaje[]
+}
+
+model ConversacionParticipante {
+  id             String       @id @default(cuid())
+  conversacionId String
+  conversacion   Conversacion @relation(fields: [conversacionId], references: [id])
+  userId         String
+  user           User         @relation(fields: [userId], references: [id])
+  ultimaLectura  DateTime?
+
+  @@unique([conversacionId, userId])
+}
+
+model Mensaje {
+  id             String       @id @default(cuid())
+  conversacionId String
+  conversacion   Conversacion @relation(fields: [conversacionId], references: [id])
+  autorId        String
+  autor          User         @relation("MensajeAutor", fields: [autorId], references: [id])
+  contenido      String
+  createdAt      DateTime     @default(now())
 }
 
 // Quejas y sugerencias internas del personal hacia la administracion

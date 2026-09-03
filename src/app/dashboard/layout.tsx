@@ -51,7 +51,10 @@ export default async function DashboardLayout({ children }: { children: React.Re
         },
         {
           title: "Comunicación",
-          items: [{ href: "/dashboard/feedback", label: "Quejas y Sugerencias", icon: "feedback" }],
+          items: [
+            { href: "/dashboard/mensajeria", label: "Mensajería", icon: "mensajeria" },
+            { href: "/dashboard/feedback", label: "Quejas y Sugerencias", icon: "feedback" },
+          ],
         },
       ]
     : esSapd
@@ -74,7 +77,10 @@ export default async function DashboardLayout({ children }: { children: React.Re
         },
         {
           title: "Comunicación",
-          items: [{ href: "/dashboard/feedback", label: "Quejas y Sugerencias", icon: "feedback" }],
+          items: [
+            { href: "/dashboard/mensajeria", label: "Mensajería", icon: "mensajeria" },
+            { href: "/dashboard/feedback", label: "Quejas y Sugerencias", icon: "feedback" },
+          ],
         },
       ]
     : [
@@ -117,7 +123,10 @@ export default async function DashboardLayout({ children }: { children: React.Re
         },
         {
           title: "Comunicación",
-          items: [{ href: "/dashboard/feedback", label: "Quejas y Sugerencias", icon: "feedback" }],
+          items: [
+            { href: "/dashboard/mensajeria", label: "Mensajería", icon: "mensajeria" },
+            { href: "/dashboard/feedback", label: "Quejas y Sugerencias", icon: "feedback" },
+          ],
         },
         {
           title: "Recursos",
