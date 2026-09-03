@@ -17,6 +17,52 @@ async function requireJuezSupremo() {
   return session.user;
 }
 
+const ESTADO_LABEL: Record<string, string> = {
+  PENDIENTE_FIRMA: "Pendiente de firma",
+  ACTIVO: "Activo",
+  FINALIZADO: "Finalizado",
+};
+
+/** Crea (envía) un contrato laboral nuevo para un empleado ya existente, ej. para un ascenso o renovación. */
+export async function crearContratoLaboral(formData: FormData) {
+  await requireJuezSupremo();
+
+  const userId = String(formData.get("userId") ?? "");
+  const puesto = String(formData.get("puesto") ?? "").trim();
+  const salarioBase = Number(formData.get("salarioBase") ?? 0);
+  const condiciones = String(formData.get("condiciones") ?? "").trim();
+  if (!userId || !puesto || Number.isNaN(salarioBase) || salarioBase <= 0) throw new Error("Datos incompletos");
+
+  const contrato = await prisma.contratoLaboral.create({
+    data: { userId, puesto, salarioBase, condiciones: condiciones || null, estado: "PENDIENTE_FIRMA" },
+    include: { user: true },
+  });
+
+  await notificarDiscord(
+    contrato.user.discordId,
+    `📑 Tienes un nuevo contrato laboral (**${contrato.puesto}**, $${contrato.salarioBase}/h) pendiente de firma. Entra al portal para revisarlo y firmarlo.`,
+  );
+
+  revalidatePath("/dashboard/mi-contrato");
+}
+
+/** Reenvía por Discord la notificación del estado actual de un contrato laboral. */
+export async function reenviarContratoLaboral(formData: FormData) {
+  await requireJuezSupremo();
+
+  const id = String(formData.get("id") ?? "");
+  if (!id) throw new Error("Datos incompletos");
+
+  const contrato = await prisma.contratoLaboral.findUniqueOrThrow({ where: { id }, include: { user: true } });
+  const mensaje =
+    contrato.estado === "PENDIENTE_FIRMA"
+      ? `📑 Recordatorio: tienes el contrato laboral (**${contrato.puesto}**, $${contrato.salarioBase}/h) pendiente de firma. Entra al portal para firmarlo.`
+      : `📑 Tu contrato laboral (**${contrato.puesto}**) está **${ESTADO_LABEL[contrato.estado]}**.`;
+  await notificarDiscord(contrato.user.discordId, mensaje);
+
+  revalidatePath("/dashboard/mi-contrato");
+}
+
 export async function actualizarContratoLaboral(formData: FormData) {
   await requireJuezSupremo();
 
@@ -33,11 +79,6 @@ export async function actualizarContratoLaboral(formData: FormData) {
     include: { user: true },
   });
 
-  const ESTADO_LABEL: Record<string, string> = {
-    PENDIENTE_FIRMA: "Pendiente de firma",
-    ACTIVO: "Activo",
-    FINALIZADO: "Finalizado",
-  };
   await notificarDiscord(
     contrato.user.discordId,
     `📑 Tu contrato laboral (${contrato.puesto}) ha cambiado a **${ESTADO_LABEL[contrato.estado]}**.`,

@@ -1,7 +1,7 @@
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { ROLE_LABELS, ROLE_TIER_LABELS, STAFF_ROLES } from "@/lib/labels";
-import { actualizarContratoLaboral } from "@/lib/actions/contratos-laborales";
+import { actualizarContratoLaboral, crearContratoLaboral, reenviarContratoLaboral } from "@/lib/actions/contratos-laborales";
 import { FirmarContratoForm } from "./firmar-contrato-form";
 import type { Role } from "@/generated/prisma/enums";
 
@@ -10,7 +10,7 @@ export default async function MiContratoPage() {
   const user = session!.user;
   const esJuezSupremo = user.role === "JUEZ_SUPREMO";
 
-  const [me, contratos, todosLosContratos] = await Promise.all([
+  const [me, contratos, todosLosContratos, personal] = await Promise.all([
     prisma.user.findUniqueOrThrow({ where: { id: user.id } }),
     prisma.contratoLaboral.findMany({ where: { userId: user.id }, orderBy: { fechaInicio: "desc" } }),
     esJuezSupremo
@@ -18,6 +18,13 @@ export default async function MiContratoPage() {
           where: { user: { role: { in: STAFF_ROLES as unknown as Role[] } } },
           orderBy: { fechaInicio: "desc" },
           include: { user: true },
+        })
+      : Promise.resolve([]),
+    esJuezSupremo
+      ? prisma.user.findMany({
+          where: { role: { in: STAFF_ROLES as unknown as Role[] }, activo: true },
+          orderBy: { nombre: "asc" },
+          select: { id: true, nombre: true, apellidos: true },
         })
       : Promise.resolve([]),
   ]);
@@ -108,6 +115,53 @@ export default async function MiContratoPage() {
       {esJuezSupremo && (
         <div className="space-y-4 border-t border-border pt-6">
           <h2 className="text-lg font-semibold">Contratos del personal (Juez Supremo)</h2>
+
+          <details className="rounded-lg border border-border bg-surface p-5">
+            <summary className="cursor-pointer text-sm font-medium">+ Enviar nuevo contrato</summary>
+            <form action={crearContratoLaboral} className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <select
+                name="userId"
+                required
+                defaultValue=""
+                className="rounded-md border border-border bg-surface-2 px-3 py-2 text-sm outline-none focus:border-accent"
+              >
+                <option value="" disabled>
+                  Empleado…
+                </option>
+                {personal.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.nombre} {p.apellidos}
+                  </option>
+                ))}
+              </select>
+              <input
+                name="puesto"
+                required
+                placeholder="Puesto"
+                className="rounded-md border border-border bg-surface-2 px-3 py-2 text-sm outline-none focus:border-accent"
+              />
+              <input
+                name="salarioBase"
+                type="number"
+                min={1}
+                required
+                placeholder="Tarifa por hora ($/h)"
+                className="rounded-md border border-border bg-surface-2 px-3 py-2 text-sm outline-none focus:border-accent"
+              />
+              <input
+                name="condiciones"
+                placeholder="Condiciones (opcional)"
+                className="rounded-md border border-border bg-surface-2 px-3 py-2 text-sm outline-none focus:border-accent"
+              />
+              <button
+                type="submit"
+                className="sm:col-span-2 rounded-md bg-accent px-4 py-2 text-sm font-medium text-accent-foreground hover:bg-accent-hover transition-colors w-fit"
+              >
+                Enviar contrato
+              </button>
+            </form>
+          </details>
+
           <div className="space-y-3">
             {todosLosContratos.map((c) => (
               <details key={c.id} className="rounded-lg border border-border bg-surface p-5">
@@ -157,9 +211,18 @@ export default async function MiContratoPage() {
                   />
                   <button
                     type="submit"
-                    className="sm:col-span-2 rounded-md bg-accent px-4 py-2 text-sm font-medium text-accent-foreground hover:bg-accent-hover transition-colors w-fit"
+                    className="rounded-md bg-accent px-4 py-2 text-sm font-medium text-accent-foreground hover:bg-accent-hover transition-colors w-fit"
                   >
                     Guardar
+                  </button>
+                </form>
+                <form action={reenviarContratoLaboral} className="mt-2">
+                  <input type="hidden" name="id" value={c.id} />
+                  <button
+                    type="submit"
+                    className="rounded-md border border-border px-4 py-2 text-sm font-medium hover:bg-surface-2 transition-colors w-fit"
+                  >
+                    Reenviar notificación
                   </button>
                 </form>
               </details>

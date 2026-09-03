@@ -47,6 +47,21 @@ export async function reconocerNomina(formData: FormData) {
   revalidatePath("/dashboard/nominas");
 }
 
+/** Reenvía por Discord un aviso con el estado actual de una nómina (recordatorio de acuerdo o de pago). */
+export async function reenviarNomina(formData: FormData) {
+  await requirePermiso("GESTIONAR_NOMINAS");
+  const id = String(formData.get("id") ?? "");
+  if (!id) throw new Error("Datos incompletos");
+
+  const nomina = await prisma.nomina.findUniqueOrThrow({ where: { id }, include: { user: true } });
+  const mensaje = !nomina.acordada
+    ? `💵 Recordatorio: tienes pendiente confirmar tu nómina de **${nomina.periodo}** ($${nomina.importe.toLocaleString("es-ES")}). Entra al portal para revisarla.`
+    : !nomina.pagada
+      ? `💵 Recordatorio: tu nómina de **${nomina.periodo}** ($${nomina.importe.toLocaleString("es-ES")}) sigue pendiente de pago.`
+      : `💵 Tu nómina de **${nomina.periodo}** ($${nomina.importe.toLocaleString("es-ES")}) ya está pagada.`;
+  await notificarDiscord(nomina.user.discordId, mensaje);
+}
+
 export async function ejecutarCierreSemanal() {
   await requirePermiso("GESTIONAR_NOMINAS");
   await cerrarSemanaYGenerarNuevas(prisma);

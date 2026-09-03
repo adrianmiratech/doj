@@ -5,7 +5,7 @@ import { ROLE_LABELS, ROLE_TIER_LABELS, STAFF_ROLES, TARIFA_HORA_MINIMA } from "
 import { formatRangoFechas } from "@/lib/semanas";
 import { actualizarNominaEnCurso } from "@/lib/nominas-auto";
 import { tienePermiso } from "@/lib/permisos";
-import { ejecutarCierreSemanal, marcarNominaPagada, reconocerNomina } from "@/lib/actions/nominas";
+import { ejecutarCierreSemanal, marcarNominaPagada, reconocerNomina, reenviarNomina } from "@/lib/actions/nominas";
 import { actualizarTarifaRango } from "@/lib/actions/tarifas";
 
 function formatDinero(n: number) {
@@ -259,19 +259,30 @@ export default async function NominasPage() {
                     {formatDinero(n.importe)} · {n.acordada ? "Acordada" : "Sin acordar"}
                   </p>
                 </div>
-                {!n.pagada ? (
-                  <form action={marcarNominaPagada}>
+                <div className="flex items-center gap-2 shrink-0">
+                  <form action={reenviarNomina}>
                     <input type="hidden" name="id" value={n.id} />
                     <button
                       type="submit"
-                      className="rounded-md bg-success px-3 py-1.5 text-xs font-medium text-white hover:opacity-90 transition-opacity shrink-0"
+                      className="rounded-md border border-border px-3 py-1.5 text-xs font-medium hover:bg-surface-2 transition-colors"
                     >
-                      Marcar pagada
+                      Reenviar
                     </button>
                   </form>
-                ) : (
-                  <StatusBadge label="Pagada" className="bg-success/15 text-success border-success/30" />
-                )}
+                  {!n.pagada ? (
+                    <form action={marcarNominaPagada}>
+                      <input type="hidden" name="id" value={n.id} />
+                      <button
+                        type="submit"
+                        className="rounded-md bg-success px-3 py-1.5 text-xs font-medium text-white hover:opacity-90 transition-opacity"
+                      >
+                        Marcar pagada
+                      </button>
+                    </form>
+                  ) : (
+                    <StatusBadge label="Pagada" className="bg-success/15 text-success border-success/30" />
+                  )}
+                </div>
               </div>
             ))}
           </div>
