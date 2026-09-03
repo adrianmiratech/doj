@@ -82,7 +82,11 @@ export function generarCertificadoAntecedentesPdf(datos: {
         y = doc.y + 16;
         doc.font("Helvetica-Bold").text("Detalle:", margin, y, { width: pageW - margin * 2 });
         y = doc.y + 4;
-        doc.font("Helvetica").text(datos.detalle, margin, y, { align: "justify", width: pageW - margin * 2 });
+        // Ver documento-oficial-pdf.ts: hay que quitar el \r que los
+        // navegadores añaden a los saltos de línea de un <textarea>, o PDFKit
+        // termina renderizando una "Ð" suelta al final de cada línea.
+        const detalle = datos.detalle.replace(/\r\n?/g, "\n");
+        doc.font("Helvetica").text(detalle, margin, y, { align: "justify", width: pageW - margin * 2 });
       }
     } else {
       doc.text(

@@ -68,7 +68,14 @@ export function generarDocumentoOficialPdf(datos: {
     doc.fillColor(negro).fontSize(11).font("Helvetica");
     doc.text(`Expedido en el Estado de San Andreas a ${fechaStr}.`, margin, y, { width: pageW - margin * 2 });
     y = doc.y + 18;
-    doc.text(datos.contenido, margin, y, { align: "justify", width: pageW - margin * 2 });
+    // Los navegadores normalizan los saltos de línea de un <textarea> a \r\n al
+    // enviar el formulario. PDFKit corta la línea en el \n pero deja el \r
+    // pegado al final del texto anterior; al codificarlo como fuente estándar
+    // ese \r produce un dígito hexadecimal suelto que desplaza la cadena hex y
+    // termina renderizando "Ð" al final de cada línea. Se normaliza antes de
+    // pasarlo a PDFKit para evitarlo.
+    const contenido = datos.contenido.replace(/\r\n?/g, "\n");
+    doc.text(contenido, margin, y, { align: "justify", width: pageW - margin * 2 });
 
     // La firma/sello se ancla cerca del final de la página para documentos
     // cortos, pero si el contenido llega hasta ahí (o se desbordó a una
