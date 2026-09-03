@@ -105,10 +105,18 @@ const encargadoSapdCommand = new SlashCommandBuilder()
   .addStringOption((opt) => opt.setName("apellidos").setDescription("Apellidos del personaje").setRequired(true))
   .addStringOption((opt) => opt.setName("dni").setDescription("DNI del personaje (opcional)"));
 
+const staffCommand = new SlashCommandBuilder()
+  .setName("staff")
+  .setDescription("Da de alta a un miembro del staff/moderación del servidor (no es personal del DOJ)")
+  .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
+  .addUserOption((opt) => opt.setName("usuario").setDescription("Usuario de Discord").setRequired(true))
+  .addStringOption((opt) => opt.setName("nombre").setDescription("Nombre").setRequired(true))
+  .addStringOption((opt) => opt.setName("apellidos").setDescription("Apellidos").setRequired(true));
+
 async function registrarComandos() {
   const rest = new REST().setToken(TOKEN);
   await rest.put(Routes.applicationCommands(CLIENT_ID), {
-    body: [contratarCommand.toJSON(), encargadoSapdCommand.toJSON()],
+    body: [contratarCommand.toJSON(), encargadoSapdCommand.toJSON(), staffCommand.toJSON()],
   });
   console.log("Comandos de aplicación registrados.");
 }
@@ -270,6 +278,77 @@ async function manejarEncargadoSapd(interaction: Interaction) {
   } catch (error) {
     console.error(error);
     await interaction.editReply("Ocurrió un error al otorgar el acceso. Revisa los datos e inténtalo de nuevo.");
+  }
+}
+
+async function manejarStaff(interaction: Interaction) {
+  if (!interaction.isChatInputCommand() || interaction.commandName !== "staff") return;
+
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+
+  const discordUser = interaction.options.getUser("usuario", true);
+  const nombre = interaction.options.getString("nombre", true).trim();
+  const apellidos = interaction.options.getString("apellidos", true).trim();
+
+  try {
+    const existente = await prisma.user.findFirst({ where: { discordId: discordUser.id } });
+    if (existente) {
+      await interaction.editReply(
+        `⚠️ ${discordUser} ya tiene una cuenta registrada (**${existente.nombre} ${existente.apellidos}**, rango **${ROLE_LABELS[existente.role] ?? existente.role}**). Si hace falta cambiarla, hazlo manualmente desde el panel (Empleados o Staff).`,
+      );
+      return;
+    }
+
+    const email = await generarEmail(nombre, apellidos);
+    const password = generarPasswordTemporal();
+
+    const staff = await prisma.user.create({
+      data: {
+        email,
+        passwordHash: await bcrypt.hash(password, 10),
+        nombre,
+        apellidos,
+        discordId: discordUser.id,
+        role: "STAFF",
+        tourCompletado: false,
+      },
+    });
+
+    await sincronizarMiembroDiscord(prisma, staff.discordId, "STAFF", `${nombre} ${apellidos}`);
+    await enviarLogDiscord(
+      prisma,
+      "empleados",
+      `🛡️ **${nombre} ${apellidos}** dado de alta como **Staff** vía \`/staff\` por ${interaction.user.tag}.`,
+    );
+
+    const embed = new EmbedBuilder()
+      .setColor(0xc9a227)
+      .setTitle("Acceso de Staff concedido")
+      .setDescription(
+        "Has sido dado de alta como **Staff** del servidor de Old State RP. Entra al portal con estas credenciales.",
+      )
+      .addFields(
+        { name: "Portal", value: APP_URL },
+        { name: "Correo", value: email },
+        { name: "Contraseña temporal", value: `\`${password}\`` },
+      )
+      .setFooter({ text: "Cambia tu contraseña desde Configuración tras iniciar sesión." });
+
+    let dmEnviado = true;
+    try {
+      await discordUser.send({ embeds: [embed] });
+    } catch {
+      dmEnviado = false;
+    }
+
+    await interaction.editReply(
+      dmEnviado
+        ? `✅ ${discordUser} dado de alta como **Staff** y notificado por mensaje privado.`
+        : `✅ ${discordUser} dado de alta como **Staff**, pero no se le pudo enviar el mensaje privado (tiene los DM cerrados). Correo: \`${email}\` · Contraseña: \`${password}\``,
+    );
+  } catch (error) {
+    console.error(error);
+    await interaction.editReply("Ocurrió un error al dar de alta al staff. Revisa los datos e inténtalo de nuevo.");
   }
 }
 
@@ -555,6 +634,7 @@ function registrarHandlers(c: Client, escucharCambiosDeRol: boolean, contenidoDi
   c.on("interactionCreate", (interaction) => {
     manejarContratar(interaction).catch(console.error);
     manejarEncargadoSapd(interaction).catch(console.error);
+    manejarStaff(interaction).catch(console.error);
     manejarBotonVerificacion(interaction).catch(console.error);
     manejarBotonAbrirTicket(interaction).catch(console.error);
     manejarBotonReclamarTicket(interaction).catch(console.error);

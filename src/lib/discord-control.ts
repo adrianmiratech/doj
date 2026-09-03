@@ -33,7 +33,10 @@ export async function listarCanalesTexto(): Promise<CanalTexto[]> {
 
   try {
     const res = await fetch(`${API}/guilds/${guildId}/channels`, { headers: headers() });
-    if (!res.ok) return [];
+    if (!res.ok) {
+      console.error(`[discord] Error listando canales (status ${res.status}):`, await res.text());
+      return [];
+    }
     const canales = (await res.json()) as { id: string; name: string; type: number; position: number }[];
     return canales
       .filter((c) => c.type === 0 || c.type === 5)
