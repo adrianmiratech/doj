@@ -75,13 +75,17 @@ a {
 /* Tailwind preflight resets el margen por defecto de <dialog>, lo que rompe
    el centrado nativo del navegador al abrirlo con showModal(). Lo restauramos,
    y limitamos su alto máximo con scroll propio para que nunca quede pegado
-   arriba cuando el contenido no cabe en el viewport. */
-dialog {
-  margin: auto;
-  max-height: calc(100vh - 4rem);
-  max-width: calc(100vw - 2rem);
-  overflow-y: auto;
-  border: 1px solid var(--border);
+   arriba cuando el contenido no cabe en el viewport. En @layer base para que
+   un max-w-* de Tailwind en el propio <dialog> (fuera de layer, gana siempre
+   si no está en layer) lo pueda angostar sin pelear con esta regla. */
+@layer base {
+  dialog {
+    margin: auto;
+    max-height: calc(100vh - 4rem);
+    max-width: calc(100vw - 2rem);
+    overflow-y: auto;
+    border: 1px solid var(--border);
+  }
 }
 dialog::backdrop {
   background: rgb(0 0 0 / 0.65);

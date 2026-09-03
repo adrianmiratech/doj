@@ -2,12 +2,17 @@ import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { ChangePasswordForm } from "@/components/change-password-form";
 import { SessionExpiredCard } from "@/components/session-expired-card";
+import { TotpSetupForm } from "@/components/totp-setup-form";
 import { actualizarDiscordId } from "@/lib/actions/configuracion";
+import { generarQrTotp } from "@/lib/totp";
 
 export default async function PerfilCivilPage() {
   const session = await auth();
   const user = await prisma.user.findUnique({ where: { id: session!.user.id } });
   if (!user) return <SessionExpiredCard />;
+
+  const qrDataUrl =
+    !user.totpHabilitado && user.totpSecret ? await generarQrTotp(user.email, user.totpSecret) : null;
 
   return (
     <div className="space-y-6 max-w-lg">
@@ -24,6 +29,19 @@ export default async function PerfilCivilPage() {
       <div className="rounded-lg border border-border bg-surface p-5">
         <h2 className="text-sm font-semibold mb-4">Cambiar contraseña</h2>
         <ChangePasswordForm />
+      </div>
+
+      <div className="rounded-lg border border-border bg-surface p-5">
+        <h2 className="text-sm font-semibold mb-1">Verificación en dos pasos</h2>
+        <p className="text-xs text-text-muted mb-4">
+          Añade una capa extra de seguridad: además de tu contraseña, te pedirá un código generado por una app
+          de tu teléfono cada vez que inicies sesión.
+        </p>
+        <TotpSetupForm
+          habilitado={user.totpHabilitado}
+          qrDataUrl={qrDataUrl}
+          secretoManual={!user.totpHabilitado ? user.totpSecret : null}
+        />
       </div>
 
       <div className="rounded-lg border border-border bg-surface p-5">

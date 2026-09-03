@@ -54,6 +54,7 @@ export async function crearEmpleado(formData: FormData) {
       cargo: cargo || null,
       legajo,
       discordId: discordId || null,
+      tourCompletado: false,
     },
   });
 

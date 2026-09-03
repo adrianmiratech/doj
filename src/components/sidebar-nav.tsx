@@ -31,6 +31,7 @@ import {
   Shield,
   UsersRound,
   Scale,
+  History,
 } from "lucide-react";
 
 const ICONS = {
@@ -62,6 +63,7 @@ const ICONS = {
   sapd: Shield,
   usuarios: UsersRound,
   misJuicios: Scale,
+  accesos: History,
 } as const;
 
 export type IconName = keyof typeof ICONS;

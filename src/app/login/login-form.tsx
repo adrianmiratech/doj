@@ -42,6 +42,23 @@ export function LoginForm({ callbackUrl }: { callbackUrl: string }) {
         />
       </div>
 
+      <div>
+        <label htmlFor="totp" className="block text-sm font-medium mb-1.5">
+          Código de verificación en dos pasos
+          <span className="font-normal text-text-muted"> (solo si la tenés activada)</span>
+        </label>
+        <input
+          id="totp"
+          name="totp"
+          type="text"
+          inputMode="numeric"
+          autoComplete="one-time-code"
+          maxLength={6}
+          placeholder="123456"
+          className="w-full rounded-md border border-border bg-surface-2 px-3 py-2 text-sm outline-none focus:border-accent focus:ring-1 focus:ring-accent transition-colors font-mono tracking-widest"
+        />
+      </div>
+
       <label className="flex items-center gap-2 text-sm text-text-muted">
         <input type="checkbox" name="remember" className="accent-[color:var(--accent)]" />
         Mantener sesión iniciada

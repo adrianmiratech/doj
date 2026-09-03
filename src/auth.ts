@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { authConfig } from "@/auth.config";
 import { enviarLogDiscord, avisarOwnerDiscord } from "@/lib/discord-logs";
 import { ROLE_LABELS } from "@/lib/labels";
+import { verificarCodigoTotp } from "@/lib/totp";
 
 // Protección anti-fuerza-bruta: intentos fallidos por correo en memoria (el
 // proceso de la web es de un único servidor, no hace falta persistirlos).
@@ -23,6 +24,12 @@ function registrarIntentoFallido(email: string): number {
 
 function ipDe(request: Request): string {
   return request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? request.headers.get("x-real-ip") ?? "desconocida";
+}
+
+function registrarAcceso(email: string, ip: string, exito: boolean, motivo: string, userId?: string) {
+  prisma.accesoLog
+    .create({ data: { email, ip, exito, motivo, userId: userId ?? null } })
+    .catch((error) => console.error("[accesos] Error guardando AccesoLog:", error));
 }
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
@@ -55,11 +62,13 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       credentials: {
         email: { label: "Correo", type: "email" },
         password: { label: "Contraseña", type: "password" },
+        totp: { label: "Código de verificación en dos pasos", type: "text" },
         remember: { label: "Recordarme", type: "text" },
       },
       authorize: async (credentials, request) => {
         const email = credentials?.email;
         const password = credentials?.password;
+        const totp = credentials?.totp;
         if (typeof email !== "string" || typeof password !== "string") {
           return null;
         }
@@ -68,16 +77,27 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         const ip = ipDe(request);
 
         const user = await prisma.user.findUnique({ where: { email: correo } });
-        if (!user || !user.activo) return null;
-        if (user.suspendidoHasta && user.suspendidoHasta.getTime() > Date.now()) return null;
+        if (!user || !user.activo) {
+          registrarAcceso(correo, ip, false, "usuario_no_encontrado");
+          return null;
+        }
+        if (user.suspendidoHasta && user.suspendidoHasta.getTime() > Date.now()) {
+          registrarAcceso(correo, ip, false, "cuenta_suspendida", user.id);
+          return null;
+        }
 
         const valid = await bcrypt.compare(password, user.passwordHash);
-        if (!valid) {
+        const codigoValido =
+          !user.totpHabilitado || (typeof totp === "string" && (await verificarCodigoTotp(user.totpSecret!, totp)));
+
+        if (!valid || !codigoValido) {
+          const motivo = !valid ? "credenciales_invalidas" : "totp_invalido";
+          registrarAcceso(correo, ip, false, motivo, user.id);
           const intentos = registrarIntentoFallido(correo);
           await enviarLogDiscord(
             prisma,
             "accesos",
-            `⚠️ Login fallido para **${correo}** desde \`${ip}\` (intento ${intentos}/${INTENTOS_MAX}).`,
+            `⚠️ Login fallido para **${correo}** desde \`${ip}\` (${!valid ? "credenciales" : "código 2FA"} · intento ${intentos}/${INTENTOS_MAX}).`,
           );
           if (intentos >= INTENTOS_MAX) {
             const hasta = new Date(Date.now() + BLOQUEO_MS);
@@ -90,6 +110,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         }
 
         intentosFallidos.delete(correo);
+        registrarAcceso(correo, ip, true, "ok", user.id);
         await prisma.user.update({ where: { id: user.id }, data: { ultimoAcceso: new Date() } });
         await enviarLogDiscord(
           prisma,

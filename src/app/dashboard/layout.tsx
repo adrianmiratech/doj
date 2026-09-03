@@ -2,18 +2,22 @@ import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { ROLE_LABELS } from "@/lib/labels";
 import { tienePermiso } from "@/lib/permisos";
+import { totpObligatorioParaRol } from "@/lib/totp";
 import { Topbar } from "@/components/topbar";
 import { SidebarNav, type NavSection } from "@/components/sidebar-nav";
 import { UserSidebarCard } from "@/components/user-sidebar-card";
+import { Totp2FABanner } from "@/components/totp-2fa-banner";
+import { WelcomeTour } from "@/components/welcome-tour";
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   const session = await auth();
   const user = session!.user;
   const me = await prisma.user.findUnique({
     where: { id: user.id },
-    select: { disponibilidad: true, avatarUrl: true },
+    select: { disponibilidad: true, avatarUrl: true, totpHabilitado: true, tourCompletado: true },
   });
   const notificacionesNoLeidas = await prisma.notificacion.count({ where: { userId: user.id, leida: false } });
+  const debeConfigurar2FA = !me?.totpHabilitado && (await totpObligatorioParaRol(user.role));
   const esJuezSupremo = user.role === "JUEZ_SUPREMO";
   const esSapd = user.role === "ENCARGADO_SAPD" || user.role === "SAPD";
   const puedeOrdenes =
@@ -98,6 +102,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
         ...(esJuezSupremo ? [{ href: "/dashboard/usuarios", label: "Usuarios", icon: "usuarios" as const }] : []),
         { href: "/dashboard/postulaciones", label: "Postulaciones", icon: "postulaciones" },
         ...(esJuezSupremo ? [{ href: "/dashboard/permisos", label: "Permisos", icon: "permisos" as const }] : []),
+        ...(esJuezSupremo ? [{ href: "/dashboard/accesos", label: "Registros de acceso", icon: "accesos" as const }] : []),
       ],
     });
   }
@@ -133,7 +138,17 @@ export default async function DashboardLayout({ children }: { children: React.Re
             />
           </div>
         </aside>
-        <main className="flex-1 min-w-0 p-6 bg-bg">{children}</main>
+        <main className="flex-1 min-w-0 p-6 bg-bg">
+          {debeConfigurar2FA && <Totp2FABanner />}
+          {!me?.tourCompletado && (
+            <WelcomeTour
+              nombre={user.nombre}
+              rango={ROLE_LABELS[user.role] ?? user.role}
+              legajo={user.legajo}
+            />
+          )}
+          {children}
+        </main>
       </div>
     </div>
   );

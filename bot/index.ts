@@ -147,6 +147,7 @@ async function manejarContratar(interaction: Interaction) {
         role: rango as never,
         cargo,
         legajo,
+        tourCompletado: false,
       },
     });
 
@@ -230,6 +231,7 @@ async function manejarEncargadoSapd(interaction: Interaction) {
         dni,
         discordId: discordUser.id,
         role: "ENCARGADO_SAPD",
+        tourCompletado: false,
       },
     });
 

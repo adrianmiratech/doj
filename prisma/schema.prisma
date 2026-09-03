@@ -114,6 +114,9 @@ model User {
   avatarUrl    String? // foto de perfil, subida desde Gestion de funcionarios
   disponibilidad Disponibilidad @default(DISPONIBLE)
   ultimoAcceso DateTime? // ultima vez que inicio sesion
+  totpSecret     String? // secreto TOTP en base32, null = no configurado
+  totpHabilitado Boolean @default(false) // el usuario activó verificación en dos pasos
+  tourCompletado Boolean @default(true) // false solo para cuentas nuevas: dispara la guía de bienvenida en el primer login
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
@@ -476,6 +479,28 @@ model RolPermiso {
   createdAt DateTime @default(now())
 
   @@unique([role, permiso])
+}
+
+// Roles para los que el Juez Supremo hizo obligatoria la verificación en dos
+// pasos (TOTP). Sin fila = no obligatoria para ese rango (cada quien decide).
+model RolTotp {
+  role        Role    @id
+  obligatorio Boolean @default(false)
+}
+
+// Historial de intentos de login del portal (éxito y fallo), con IP, para
+// auditoría desde el panel del Juez Supremo.
+model AccesoLog {
+  id        String   @id @default(cuid())
+  email     String
+  userId    String?
+  ip        String?
+  exito     Boolean
+  motivo    String? // "credenciales_invalidas" | "cuenta_suspendida" | "totp_invalido" | "ok"
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([email])
 }
 
 // Canales de Discord (creados por el bot bajo una categoria de logs) donde
