@@ -10,6 +10,7 @@
     "lint": "eslint",
     "db:seed": "tsx prisma/seed.ts",
     "db:studio": "prisma studio",
+    "db:migrate-remoto": "tsx scripts/db-migrate-remoto.ts",
     "bot": "tsx bot/index.ts"
   },
   "dependencies": {

@@ -137,8 +137,10 @@ El arranque automático al iniciar sesión ya está registrado (`pm2-startup ins
 
 El bot de Discord (PM2) sigue corriendo en este equipo; solo la web (Next.js) se despliega en Vercel. Ambos deben apuntar a la **misma base de datos**, así que el primer paso es sacarla de este disco:
 
-1. **Base de datos remota (Turso).** SQLite local (`file:./dev.db`) no sirve en Vercel: el filesystem ahí es de solo lectura y no persiste. Crea una base gratis en [turso.tech](https://turso.tech) (usa `@prisma/adapter-libsql`, así que no hace falta cambiar ORM) y consigue su `DATABASE_URL` (`libsql://...`) y un token con `turso db tokens create`. Migra el esquema con `DATABASE_URL="libsql://..." DATABASE_AUTH_TOKEN="..." npx prisma migrate deploy`.
-2. **Actualiza el `.env` de este equipo** con esa misma `DATABASE_URL`/`DATABASE_AUTH_TOKEN` y reinicia el bot (`pm2 restart doj-bot`) para que web y bot compartan datos.
+1. **Base de datos remota (Turso).** SQLite local (`file:./dev.db`) no sirve en Vercel: el filesystem ahí es de solo lectura y no persiste. Crea una base en [app.turso.tech](https://app.turso.tech) (usa `@prisma/adapter-libsql`, así que no hace falta cambiar ORM) con **"Upload SQLite File"** subiendo `dev.db` directamente, así arranca con los datos reales ya cargados. Sacá la `DATABASE_URL` (`libsql://...`) y un token desde "Connect" en el panel de la base.
+
+   ⚠️ `prisma migrate deploy` **no** funciona contra Turso: el motor de Prisma solo reconoce URLs `file:`, no `libsql://` (da error `P1013`). Para futuras migraciones (después de `prisma migrate dev` en local), aplícalas a la base remota con `npm run db:migrate-remoto` (script propio en `scripts/db-migrate-remoto.ts` que sí sabe hablar con Turso).
+2. **Actualiza el `.env` de este equipo** con esa misma `DATABASE_URL`/`DATABASE_AUTH_TOKEN` y reinicia el bot (`pm2 restart doj-bot --update-env`) para que web y bot compartan datos.
 3. **Sube el repo a GitHub**: crea un repo vacío en github.com y desde esta carpeta:
    ```bash
    git remote add origin https://github.com/<tu-usuario>/<tu-repo>.git
