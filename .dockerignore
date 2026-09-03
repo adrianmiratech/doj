@@ -1,0 +1,14 @@
+node_modules
+.next
+.git
+.vercel
+.env
+.env.*
+!.env.example
+dev.db
+dev.db-journal
+public/uploads
+.agents
+src/generated/prisma
+*.tsbuildinfo
+doj-portal.zip

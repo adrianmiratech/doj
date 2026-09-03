@@ -137,22 +137,37 @@ El arranque automático al iniciar sesión ya está registrado (`pm2-startup ins
 
 En vez de (o además de) PM2 en este equipo, el bot puede correr 24/7 en [Discloud](https://discloud.com). Como `bot/index.ts` importa código compartido con la web (`src/lib/discord-roles.ts`, `discord-logs.ts`, `discord-scanner.ts`, `discord-notify.ts`, `nominas-auto.ts`, `labels.ts`, `password.ts`) y el cliente de Prisma (`src/generated/prisma`), se sube el repo completo (Discloud solo instancia el proceso que le digas con `START`, no hace falta que sea "solo el bot").
 
-Ya está preparado: `discloud.config` (define `MAIN=bot/index.ts`, `START=npm run bot`, `BUILD=npx prisma generate`) y `.discloudignore` (excluye `node_modules`, `.next`, `dev.db`, `public/uploads`, etc., para que la subida sea liviana).
+Ya está preparado: `discloud.config` (`MAIN=bot/discloud-entry.js` — un archivo `.js` vacío solo para que Discloud detecte el entorno; la ejecución real la hace `START=npm run bot`, que corre `tsx bot/index.ts`) y `.discloudignore` (excluye `node_modules`, `.next`, `dev.db`, `public/uploads`, etc., para que la subida sea liviana: ~270 KB en vez de cientos de MB).
 
-1. Consigue tu token de API de Discloud (servidor de Discord de Discloud → comando `/apikey`).
-2. Instala y logueate con el CLI:
+1. Consigue tu token de API de Discloud (dashboard → tu perfil → pestaña "API Key").
+2. Logueate con el CLI (te pide el token por consola):
    ```bash
-   npm install -g discloud-cli
-   discloud --login
+   npx discloud-cli login
    ```
-3. Desde la carpeta del proyecto, configura en el panel de Discloud (o con `discloud commit`) las mismas variables del `.env` que usa el bot: `DATABASE_URL`, `DATABASE_AUTH_TOKEN`, `DISCORD_TOKEN`, `DISCORD_CLIENT_ID`, `DISCORD_CLIENT_SECRET`, `APP_URL` (con la URL de Vercel si la web ya está publicada). La base de datos remota (Turso) es la misma que usa la web — así comparten datos igual que con PM2.
+3. Configura en el panel de Discloud las mismas variables del `.env` que usa el bot: `DATABASE_URL`, `DATABASE_AUTH_TOKEN`, `DISCORD_TOKEN`, `DISCORD_CLIENT_ID`, `DISCORD_CLIENT_SECRET`, `APP_URL` (con la URL de Vercel si la web ya está publicada). La base de datos remota (Turso) es la misma que usa la web — así comparten datos igual que con PM2.
 4. Sube y arranca:
    ```bash
-   discloud up
+   npx discloud-cli app upload
    ```
-5. `discloud status` para ver que quedó online, `discloud logs` para ver los logs en vivo.
+5. `npx discloud-cli app status doj-bot` para ver que quedó online, `npx discloud-cli app logs doj-bot` para ver los logs en vivo.
 
 Si corre en Discloud, apaga el `doj-bot` de PM2 en este equipo (`pm2 delete doj-bot`) para no tener dos instancias del bot conectadas a la vez (Discord las rechazaría / duplicaría cada acción).
+
+> **Nota (03/09/2026):** subir por CLI funciona (tamaño, RAM y `MAIN` ya verificados), pero la creación del contenedor está fallando del lado de Discloud con `[Discloud API: 411] Ocorreu um erro ao configurar o ambiente Lannumber` — un bug de su infraestructura, no de esta config. Reportado a su soporte; probar de nuevo más adelante.
+
+## Alternativa: hostear el bot en Northflank
+
+Otra opción con cómputo siempre activo gratis (sin "dormir" como Render), vía contenedor Docker: [Northflank](https://northflank.com). Pide tarjeta al crear la cuenta solo como verificación anti-abuso — no cobra nada en el plan Sandbox.
+
+Ya está preparado: `Dockerfile` (instala el repo completo, corre `prisma generate` y arranca con `npm run bot`) y `.dockerignore`.
+
+1. Creá una cuenta en northflank.com y conectá tu GitHub (el repo `adrianmiratech/doj`).
+2. Dashboard → New Service → **Combined service** (build + deploy) → elegí el repo → Northflank detecta el `Dockerfile` solo.
+3. Como es un bot (no un sitio web), no hace falta exponer ningún puerto — decíselo al asistente si te lo pregunta.
+4. En "Environment variables" del servicio, cargá las mismas del `.env`: `DATABASE_URL`, `DATABASE_AUTH_TOKEN`, `DISCORD_TOKEN`, `DISCORD_CLIENT_ID`, `DISCORD_CLIENT_SECRET`, `APP_URL`.
+5. Deploy. Los logs se ven en vivo desde la pestaña "Logs" del servicio.
+
+Igual que con Discloud: si corre acá, apagá el `doj-bot` de PM2 local (`pm2 delete doj-bot`) para que no haya dos bots conectados a la vez.
 
 ## Publicar en producción (GitHub + Vercel)
 
