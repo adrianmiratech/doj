@@ -22,6 +22,7 @@ export const TIPOS_LOG = [
   "fichajes",
   "tramites",
   "actividad",
+  "accesos",
 ] as const;
 export type TipoLog = (typeof TIPOS_LOG)[number];
 
@@ -34,6 +35,7 @@ const NOMBRES_CANAL: Record<TipoLog, string> = {
   fichajes: "logs-fichajes",
   tramites: "logs-tramites",
   actividad: "logs-actividad",
+  accesos: "logs-accesos",
 };
 
 async function obtenerOCrearCanal(prisma: PrismaLike, tipo: TipoLog): Promise<string | null> {
@@ -85,5 +87,39 @@ export async function enviarLogDiscord(prisma: PrismaLike, tipo: TipoLog, mensaj
     if (!res.ok) console.error("[discord] No se pudo enviar el log:", await res.text());
   } catch (error) {
     console.error("[discord] Error enviando log:", error);
+  }
+}
+
+/**
+ * Avisa por mensaje privado al owner del servidor de Discord (vía REST, sin
+ * necesitar el proceso del bot conectado por gateway — sirve desde la propia
+ * web, p. ej. tras detectar un posible ataque de fuerza bruta en el login).
+ */
+export async function avisarOwnerDiscord(mensaje: string) {
+  if (!process.env.DISCORD_TOKEN) return;
+  try {
+    const guildId = await resolverGuildId();
+    if (!guildId) return;
+
+    const guildRes = await fetch(`${API}/guilds/${guildId}`, { headers: headers() });
+    if (!guildRes.ok) return;
+    const guild = (await guildRes.json()) as { owner_id: string };
+
+    const dmRes = await fetch(`${API}/users/@me/channels`, {
+      method: "POST",
+      headers: headers(),
+      body: JSON.stringify({ recipient_id: guild.owner_id }),
+    });
+    if (!dmRes.ok) return;
+    const dm = (await dmRes.json()) as { id: string };
+
+    const msgRes = await fetch(`${API}/channels/${dm.id}/messages`, {
+      method: "POST",
+      headers: headers(),
+      body: JSON.stringify({ content: `🚨 ${mensaje}` }),
+    });
+    if (!msgRes.ok) console.error("[discord] No se pudo avisar al owner por DM:", await msgRes.text());
+  } catch (error) {
+    console.error("[discord] Error avisando al owner por DM:", error);
   }
 }
