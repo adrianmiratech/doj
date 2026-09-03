@@ -61,6 +61,30 @@ function recortar(texto: string | null | undefined, max = 300) {
   return texto.length > max ? `${texto.slice(0, max)}…` : texto;
 }
 
+// Detección de enlaces/dominios en mensajes, para recordar la web oficial
+// cuando alguien pone un enlace que no es el nuestro (ej. una web antigua o
+// un enlace de phishing haciéndose pasar por el Departamento).
+const DOMINIO_OFICIAL = "doj.cat";
+const MENSAJE_URL_OFICIAL = "🌐 La web oficial del Departamento de Justicia es **https://www.doj.cat**";
+const REGEX_ENLACE =
+  /(?:https?:\/\/|www\.)[^\s<>"')\]]+|\b[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9-]{1,63})*\.(?:com|net|org|es|cat|io|gg|info|co|app|dev|me|link|xyz|club|shop|top|gov|edu|biz|tv|cc|ai|us|uk|de|fr|it|gl|page|site)\b/gi;
+
+function extraerDominio(coincidencia: string): string {
+  return coincidencia
+    .trim()
+    .toLowerCase()
+    .replace(/^https?:\/\//, "")
+    .replace(/^www\./, "")
+    .split(/[/?#]/)[0];
+}
+
+/** True si el texto trae al menos un enlace/dominio que no es el sitio oficial (doj.cat). */
+function contieneEnlaceNoOficial(texto: string): boolean {
+  const coincidencias = texto.match(REGEX_ENLACE);
+  if (!coincidencias || coincidencias.length === 0) return false;
+  return coincidencias.some((c) => extraerDominio(c) !== DOMINIO_OFICIAL);
+}
+
 /** Busca en el registro de auditoría quién ejecutó una acción reciente. Requiere permiso "Ver registro de auditoría"; si falta, degrada a "desconocido". */
 async function ejecutorDe(guild: Guild, tipo: AuditLogEvent, objetivoId?: string): Promise<{ tag: string; id: string | null }> {
   try {
@@ -121,6 +145,10 @@ export function registrarEscaneoServidor(client: Client, prisma: PrismaLike, con
         `${message.author.tag} mencionó a @everyone/@here en <#${message.channelId}>.\n${recortar(message.content)}`,
         message.author.id,
       ).catch(console.error);
+    }
+
+    if (contenidoDisponible && contieneEnlaceNoOficial(message.content) && "send" in message.channel) {
+      message.channel.send(MENSAJE_URL_OFICIAL).catch(console.error);
     }
   });
 
