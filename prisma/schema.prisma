@@ -1,0 +1,560 @@
+// Prisma schema — Portal del Departamento de Justicia (Old State RP)
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+// Rango dentro del Departamento de Justicia, segun la estructura funcional
+// de la postulacion (sin exceso de rangos). Los CIVILes son la ciudadania.
+enum Role {
+  JUEZ_SUPREMO // Propietario: firma final, fondos del estado, laudos mayores
+  JUEZ_DISTRITO // Gerente: preside juicios, ordenes de allanamiento
+  FISCAL_GENERAL // Empleado Senior: acusacion, investigaciones de oficio
+  FISCAL // Empleado Regular: acusacion, bajo la Fiscalia General
+  DEFENSOR_PUBLICO // Empleado Regular: defensa civil, contratos
+  ALGUACIL // Empleado Especial (seguridad): orden en sala, licencia de armas
+  ENCARGADO_SAPD // Jefatura de policia (SAPD), gestiona su propia plantilla
+  SAPD // Agente de policia (SAPD)
+  CIVIL
+}
+
+enum EstadoOrdenJudicial {
+  PENDIENTE
+  APROBADA
+  RECHAZADA
+  EJECUTADA
+}
+
+enum Gravedad {
+  LEVE
+  GRAVE
+  MUY_GRAVE
+}
+
+enum EstadoFalta {
+  PENDIENTE
+  RECONOCIDA
+}
+
+enum EstadoContrato {
+  PENDIENTE_FIRMA
+  FIRMADO
+  ANULADO
+}
+
+enum EstadoSolicitud {
+  PENDIENTE
+  EN_REVISION
+  APROBADA
+  RECHAZADA
+  CERRADA
+}
+
+enum EstadoCaso {
+  ABIERTO
+  EN_PROCESO
+  EN_JUICIO
+  CERRADO
+  ARCHIVADO
+}
+
+enum EstadoPlus {
+  PENDIENTE
+  APROBADO
+  RECHAZADO
+}
+
+enum EstadoExamen {
+  PENDIENTE
+  APROBADO
+  SUSPENDIDO
+}
+
+enum EstadoContratoLaboral {
+  PENDIENTE_FIRMA
+  ACTIVO
+  FINALIZADO
+}
+
+enum AlcanceTramite {
+  INTERNO // solo empleados
+  EXTERNO // solo ciudadanos
+}
+
+enum Disponibilidad {
+  DISPONIBLE
+  OCUPADO
+}
+
+enum EstadoPostulacion {
+  PENDIENTE
+  APROBADA
+  RECHAZADA
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  nombre       String
+  apellidos    String
+  dni          String?  @unique // documento de identidad del personaje (opcional para personal: solo la placa es obligatoria)
+  telefono     String?
+  discordId    String? // para menciones/alertas por Discord
+  role         Role     @default(CIVIL)
+  cargo        String? // ej. "Sala de lo Penal"
+  legajo       String?  @unique // numero de placa, solo personal del depto.
+  activo       Boolean  @default(true) // false = inhabilitada permanentemente
+  suspendidoHasta DateTime? // si esta en el futuro, la cuenta esta inhabilitada temporalmente
+  avatarUrl    String? // foto de perfil, subida desde Gestion de funcionarios
+  disponibilidad Disponibilidad @default(DISPONIBLE)
+  ultimoAcceso DateTime? // ultima vez que inicio sesion
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  solicitudesCreadas   Solicitud[] @relation("SolicitudCiudadano")
+  solicitudesAsignadas Solicitud[] @relation("SolicitudEmpleado")
+  tramitesCreados      Tramite[]   @relation("TramiteCiudadano")
+  tramitesAsignados    Tramite[]   @relation("TramiteEmpleado")
+  casosResponsable     Caso[]      @relation("CasoResponsable")
+  audienciasComoJuez   Audiencia[] @relation("AudienciaJuez")
+  fichajes             Fichaje[]
+  ajustesFichaje       AjusteFichaje[] @relation("AjusteFichajeEmpleado")
+  ajustesFichajeHechos AjusteFichaje[] @relation("AjusteFichajeAutor")
+  notas                NotaCaso[]
+  contratosRedactados  Contrato[]  @relation("ContratoRedactor")
+  faltasRecibidas      Falta[]     @relation("FaltaEmpleado")
+  faltasImpuestas      Falta[]     @relation("FaltaAutor")
+  solicitudesFaltaCreadas    SolicitudFalta[] @relation("SolicitudFaltaAutor")
+  solicitudesFaltaRecibidas  SolicitudFalta[] @relation("SolicitudFaltaReportado")
+  nominas              Nomina[]
+  pluses               Plus[]
+  contratosLaborales   ContratoLaboral[]
+  medallaProgresos     MedallaProgreso[]
+  examenesRecibidos    Examen[]    @relation("ExamenEmpleado")
+  examenesAsignados    Examen[]    @relation("ExamenAsignadoPor")
+  plantillasExamenCreadas PlantillaExamen[]
+  informes             Informe[]
+  feedbacks            Feedback[]
+  casosComoParte       CasoParte[]
+  postulaciones        Postulacion[] @relation("PostulacionCandidato")
+  postulacionesRevisadas Postulacion[] @relation("PostulacionRevisor")
+  ordenesSolicitadas   OrdenJudicial[] @relation("OrdenSolicitante")
+  ordenesResueltas     OrdenJudicial[] @relation("OrdenResuelvePor")
+  resolucionesEmitidas Resolucion[]    @relation("ResolucionAutor")
+  notificaciones       Notificacion[]
+}
+
+// Catalogo de tramites, configurable por el Juez Supremo. "alcance" decide
+// si lo pueden pedir los ciudadanos (EXTERNO) o solo el personal (INTERNO).
+model TipoTramite {
+  id          String         @id @default(cuid())
+  nombre      String         @unique
+  descripcion String
+  requisitos  String? // texto libre con requisitos
+  costo       Int            @default(0) // en $ del servidor, 0 = gratuito
+  alcance     AlcanceTramite @default(EXTERNO)
+  activo      Boolean        @default(true)
+  tramites    Tramite[]
+}
+
+model Tramite {
+  id          String          @id @default(cuid())
+  tipoId      String
+  tipo        TipoTramite     @relation(fields: [tipoId], references: [id])
+  ciudadanoId String
+  ciudadano   User            @relation("TramiteCiudadano", fields: [ciudadanoId], references: [id])
+  empleadoId  String?
+  empleado    User?           @relation("TramiteEmpleado", fields: [empleadoId], references: [id])
+  estado      EstadoSolicitud @default(PENDIENTE)
+  detalle     String
+  respuesta   String?
+  certificadoPdf Bytes? // certificado de antecedentes generado (si el tramite es de ese tipo)
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+}
+
+// Solicitudes generales: quejas, apelaciones, peticiones, denuncias civiles no penales
+model Solicitud {
+  id          String          @id @default(cuid())
+  asunto      String
+  categoria   String // "Apelacion", "Queja", "Peticion", "Denuncia civil", etc.
+  descripcion String
+  estado      EstadoSolicitud @default(PENDIENTE)
+  ciudadanoId String
+  ciudadano   User            @relation("SolicitudCiudadano", fields: [ciudadanoId], references: [id])
+  empleadoId  String?
+  empleado    User?           @relation("SolicitudEmpleado", fields: [empleadoId], references: [id])
+  respuesta   String?
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+}
+
+// Expedientes / casos judiciales, gestionados por personal del departamento
+model Caso {
+  id            String     @id @default(cuid())
+  expediente    String     @unique // numero de expediente, ej. DOJ-2026-0001
+  titulo        String
+  tipo          String // "Penal", "Civil", "Administrativo"
+  descripcion   String
+  estado        EstadoCaso @default(ABIERTO)
+  responsableId String
+  responsable   User       @relation("CasoResponsable", fields: [responsableId], references: [id])
+  partes        String? // texto libre: demandante/demandado o acusado/victima
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+
+  audiencias Audiencia[]
+  notas      NotaCaso[]
+  partesRelacionadas CasoParte[]
+  resoluciones Resolucion[]
+}
+
+// Ciudadanos registrados vinculados a un caso (para que vean sus juicios y resoluciones)
+model CasoParte {
+  id     String @id @default(cuid())
+  casoId String
+  caso   Caso   @relation(fields: [casoId], references: [id], onDelete: Cascade)
+  userId String
+  user   User   @relation(fields: [userId], references: [id])
+  rol    String @default("Involucrado") // "Denunciante", "Acusado", "Víctima", "Testigo"...
+
+  @@unique([casoId, userId])
+}
+
+model NotaCaso {
+  id        String   @id @default(cuid())
+  casoId    String
+  caso      Caso     @relation(fields: [casoId], references: [id], onDelete: Cascade)
+  autorId   String
+  autor     User     @relation(fields: [autorId], references: [id])
+  contenido String
+  createdAt DateTime @default(now())
+}
+
+model Audiencia {
+  id        String   @id @default(cuid())
+  casoId    String
+  caso      Caso     @relation(fields: [casoId], references: [id], onDelete: Cascade)
+  juezId    String
+  juez      User     @relation("AudienciaJuez", fields: [juezId], references: [id])
+  fecha     DateTime
+  lugar     String   @default("Sala de Audiencias 1")
+  notas     String?
+  createdAt DateTime @default(now())
+}
+
+// Fichaje de horas para el personal del departamento
+model Fichaje {
+  id         String    @id @default(cuid())
+  userId     String
+  user       User      @relation(fields: [userId], references: [id])
+  entrada    DateTime  @default(now())
+  salida     DateTime?
+  actividad  String    @default("Atencion al publico")
+  alertado4h Boolean   @default(false) // ya se avisó por Discord de que superó las 4h sin fichar salida
+}
+
+// Registro Civil y Notaria: compraventas, testamentos, matrimonios...
+model Contrato {
+  id         String         @id @default(cuid())
+  tipo       String // "Compraventa de vehiculo", "Compraventa de negocio", "Testamento", "Matrimonio"
+  partes     String // texto libre con las partes implicadas
+  detalle    String?
+  estado     EstadoContrato @default(PENDIENTE_FIRMA)
+  redactorId String
+  redactor   User           @relation("ContratoRedactor", fields: [redactorId], references: [id])
+  createdAt  DateTime       @default(now())
+  updatedAt  DateTime       @updatedAt
+}
+
+// Control interno / sanciones disciplinarias al personal.
+// El empleado "reconoce" la falta, igual que se reconoce una nomina.
+model Falta {
+  id         String      @id @default(cuid())
+  empleadoId String
+  empleado   User        @relation("FaltaEmpleado", fields: [empleadoId], references: [id])
+  autorId    String
+  autor      User        @relation("FaltaAutor", fields: [autorId], references: [id])
+  motivo     String
+  gravedad   Gravedad    @default(LEVE)
+  estado     EstadoFalta @default(PENDIENTE)
+  createdAt  DateTime    @default(now())
+}
+
+// Solicitud de falta: cualquier miembro del Departamento puede reportar a un
+// compañero; el Juez Supremo la revisa y, si la aprueba, se convierte en una
+// Falta real sobre el reportado.
+model SolicitudFalta {
+  id            String          @id @default(cuid())
+  reportadoId   String
+  reportado     User            @relation("SolicitudFaltaReportado", fields: [reportadoId], references: [id])
+  autorId       String
+  autor         User            @relation("SolicitudFaltaAutor", fields: [autorId], references: [id])
+  titulo        String
+  descripcion   String?
+  gravedad      Gravedad        @default(LEVE)
+  evidencias    String? // enlace a pruebas (imagen, clip...)
+  estado        EstadoSolicitud @default(PENDIENTE)
+  faltaId       String?         @unique
+  createdAt     DateTime        @default(now())
+}
+
+// Nomina semanal: el empleado debe dar su acuerdo antes del pago.
+model Nomina {
+  id           String    @id @default(cuid())
+  userId       String
+  user         User      @relation(fields: [userId], references: [id])
+  periodo      String // clave interna de semana natural, ej. "Semana 34 · 2026"
+  numeroSemana Int       @default(1) // semana Nº del empleado (1 = su primera nomina), para el recibo
+  inicio       DateTime? // lunes de la semana que cubre esta nomina
+  fin          DateTime? // domingo de la semana que cubre esta nomina
+  horas        Float     @default(0)
+  tarifa       Int       @default(0) // tarifa/hora vigente al cerrar la semana
+  importe      Int       @default(0)
+  detalle      String?
+  acordada     Boolean   @default(false)
+  pagada       Boolean   @default(false)
+  createdAt    DateTime  @default(now())
+}
+
+// Catalogo de pluses disponibles para el personal
+model TipoPlus {
+  id          String  @id @default(cuid())
+  nombre      String  @unique
+  descripcion String?
+  monto       Int
+  activo      Boolean @default(true)
+  pluses      Plus[]
+}
+
+model Plus {
+  id        String     @id @default(cuid())
+  tipoId    String
+  tipo      TipoPlus   @relation(fields: [tipoId], references: [id])
+  userId    String
+  user      User       @relation(fields: [userId], references: [id])
+  semana    String // ej. "Semana 35 · 2026"
+  notas     String?
+  estado    EstadoPlus @default(PENDIENTE)
+  createdAt DateTime   @default(now())
+}
+
+// Contrato laboral del empleado con el Departamento (distinto del Contrato notarial)
+model ContratoLaboral {
+  id          String                @id @default(cuid())
+  userId      String
+  user        User                  @relation(fields: [userId], references: [id])
+  puesto      String
+  salarioBase Int // tarifa por hora ($/h); la nomina semanal se calcula con las horas fichadas
+  condiciones String?
+  estado      EstadoContratoLaboral @default(PENDIENTE_FIRMA)
+  fechaInicio DateTime              @default(now())
+}
+
+// Catalogo de condecoraciones/medallas del Departamento
+model Medalla {
+  id          String @id @default(cuid())
+  nombre      String @unique
+  categoria   String // "Mérito" o "Distintivo de Servicio"
+  descripcion String
+  bonoNomina  Int    @default(0)
+  objetivo    Int    @default(1)
+
+  progresos MedallaProgreso[]
+}
+
+model MedallaProgreso {
+  id              String    @id @default(cuid())
+  medallaId       String
+  medalla         Medalla   @relation(fields: [medallaId], references: [id])
+  userId          String
+  user            User      @relation(fields: [userId], references: [id])
+  progreso        Int       @default(0)
+  conseguida      Boolean   @default(false)
+  fechaConseguida DateTime?
+
+  @@unique([medallaId, userId])
+}
+
+// Examenes asignados al personal (conocimientos legales, procedimiento...)
+// Plantilla reutilizable de examen: se crea una vez, con sus preguntas
+// (una por linea), y luego se asigna a quien haga falta cuando haga falta.
+model PlantillaExamen {
+  id          String   @id @default(cuid())
+  titulo      String
+  descripcion String
+  preguntas   String // una pregunta por linea
+  creadoPorId String
+  creadoPor   User     @relation(fields: [creadoPorId], references: [id])
+  activo      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+
+  examenes Examen[]
+}
+
+model Examen {
+  id            String           @id @default(cuid())
+  plantillaId   String?
+  plantilla     PlantillaExamen? @relation(fields: [plantillaId], references: [id])
+  titulo        String
+  descripcion   String
+  empleadoId    String
+  empleado      User             @relation("ExamenEmpleado", fields: [empleadoId], references: [id])
+  asignadoPorId String
+  asignadoPor   User             @relation("ExamenAsignadoPor", fields: [asignadoPorId], references: [id])
+  estado        EstadoExamen     @default(PENDIENTE)
+  resultado     String?
+  createdAt     DateTime         @default(now())
+}
+
+// Informes internos de actividad (no ligados a un expediente concreto)
+model Informe {
+  id        String   @id @default(cuid())
+  titulo    String
+  contenido String
+  autorId   String
+  autor     User     @relation(fields: [autorId], references: [id])
+  createdAt DateTime @default(now())
+}
+
+// Quejas y sugerencias internas del personal hacia la administracion
+model Feedback {
+  id        String   @id @default(cuid())
+  tipo      String // "Sugerencia" | "Queja"
+  contenido String
+  anonimo   Boolean  @default(false)
+  autorId   String?
+  autor     User?    @relation(fields: [autorId], references: [id])
+  createdAt DateTime @default(now())
+}
+
+// Postulacion de un civil a un rango del Departamento. Solo una postulacion
+// (de cualquier estado no rechazado) por civil y rango a la vez.
+model Postulacion {
+  id             String            @id @default(cuid())
+  candidatoId    String
+  candidato      User              @relation("PostulacionCandidato", fields: [candidatoId], references: [id])
+  rango          Role
+  motivacion     String
+  experiencia    String?
+  estado         EstadoPostulacion @default(PENDIENTE)
+  respuesta      String?
+  revisadaPorId  String?
+  revisadaPor    User?             @relation("PostulacionRevisor", fields: [revisadaPorId], references: [id])
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+
+  respuestasPreguntas RespuestaPostulacion[]
+}
+
+// Correccion manual de horas de un empleado (el Juez Supremo puede sumar o
+// restar minutos con un motivo). Se suma al calculo de horas fichadas de la
+// semana en la que se crea, afectando tanto el contador como la nomina.
+model AjusteFichaje {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation("AjusteFichajeEmpleado", fields: [userId], references: [id])
+  minutos   Int // positivo suma horas, negativo resta
+  motivo    String
+  autorId   String
+  autor     User     @relation("AjusteFichajeAutor", fields: [autorId], references: [id])
+  createdAt DateTime @default(now())
+}
+
+// Permisos delegados por rango (el Juez Supremo siempre tiene todos,
+// independientemente de esta tabla). Vacio por defecto: nada delegado.
+model RolPermiso {
+  id        String   @id @default(cuid())
+  role      Role
+  permiso   String
+  createdAt DateTime @default(now())
+
+  @@unique([role, permiso])
+}
+
+// Canales de Discord (creados por el bot bajo una categoria de logs) donde
+// se publica el registro de auditoria de cada tipo de evento del sistema.
+model CanalLog {
+  tipo      String   @id
+  channelId String
+  createdAt DateTime @default(now())
+}
+
+// Tarifa por hora de cada rango (el sueldo va por rango, no por persona).
+// Minimo 1 $/h: no se puede cobrar 0.
+model TarifaRango {
+  role      Role  @id
+  tarifaHora Int  @default(1)
+}
+
+// Ordenes judiciales (allanamiento, arresto, registro...) que el SAPD y la
+// Fiscalia pueden solicitar; las resuelve un Juez.
+model OrdenJudicial {
+  id             String              @id @default(cuid())
+  tipo           String // "Allanamiento", "Arresto", "Registro", etc.
+  objetivo       String // persona o lugar objetivo de la orden
+  motivo         String
+  evidencias     String? // archivo subido o enlace a pruebas
+  solicitanteId  String
+  solicitante    User                @relation("OrdenSolicitante", fields: [solicitanteId], references: [id])
+  estado         EstadoOrdenJudicial @default(PENDIENTE)
+  respuesta      String?
+  resueltaPorId  String?
+  resueltaPor    User?               @relation("OrdenResuelvePor", fields: [resueltaPorId], references: [id])
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
+}
+
+// Resoluciones judiciales/administrativas publicadas por un Juez (fallos,
+// decretos, comunicados oficiales), opcionalmente ligadas a un expediente.
+model Resolucion {
+  id        String   @id @default(cuid())
+  titulo    String
+  contenido String
+  autorId   String
+  autor     User     @relation("ResolucionAutor", fields: [autorId], references: [id])
+  casoId    String?
+  caso      Caso?    @relation(fields: [casoId], references: [id])
+  createdAt DateTime @default(now())
+}
+
+// Preguntas configurables por el Juez Supremo para la postulacion a un
+// rango concreto (ademas de la motivacion, siempre presente).
+model PreguntaPostulacion {
+  id      String  @id @default(cuid())
+  rango   Role
+  texto   String
+  orden   Int     @default(0)
+  activa  Boolean @default(true)
+
+  respuestas RespuestaPostulacion[]
+}
+
+model RespuestaPostulacion {
+  id            String              @id @default(cuid())
+  postulacionId String
+  postulacion   Postulacion         @relation(fields: [postulacionId], references: [id])
+  preguntaId    String
+  pregunta      PreguntaPostulacion @relation(fields: [preguntaId], references: [id])
+  respuesta     String
+}
+
+// Notificaciones internas de la web (independientes de Discord): avisan de
+// trámites, solicitudes de falta, postulaciones u órdenes judiciales nuevas.
+model Notificacion {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  tipo      String // "tramite", "falta", "postulacion", "orden"...
+  titulo    String
+  mensaje   String?
+  enlace    String? // ruta interna a la que lleva al pulsarla
+  leida     Boolean  @default(false)
+  createdAt DateTime @default(now())
+}

@@ -1,26 +1,82 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --bg: #0b0d12;
+  --surface: #12151c;
+  --surface-2: #1a1e27;
+  --surface-3: #232838;
+  --border: #262b36;
+  --text: #e8eaed;
+  --text-muted: #8b93a1;
+  --accent: #c9a227;
+  --accent-hover: #ddb635;
+  --accent-foreground: #16130a;
+  --success: #22c55e;
+  --danger: #ef4444;
+  --warning: #f59e0b;
+  --info: #3b82f6;
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-surface-3: var(--surface-3);
+  --color-border: var(--border);
+  --color-text: var(--text);
+  --color-text-muted: var(--text-muted);
+  --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-success: var(--success);
+  --color-danger: var(--danger);
+  --color-warning: var(--warning);
+  --color-info: var(--info);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+html {
+  color-scheme: dark;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-sans), Arial, Helvetica, sans-serif;
+}
+
+* {
+  border-color: var(--border);
+}
+
+/* Tailwind preflight resets el margen por defecto de <dialog>, lo que rompe
+   el centrado nativo del navegador al abrirlo con showModal(). Lo restauramos,
+   y limitamos su alto máximo con scroll propio para que nunca quede pegado
+   arriba cuando el contenido no cabe en el viewport. */
+dialog {
+  margin: auto;
+  max-height: calc(100vh - 4rem);
+  max-width: calc(100vw - 2rem);
+  overflow-y: auto;
+}
+dialog::backdrop {
+  background: rgb(0 0 0 / 0.6);
+}
+
+::selection {
+  background: var(--accent);
+  color: var(--accent-foreground);
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: var(--bg);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--surface-3);
+  border-radius: 999px;
 }
