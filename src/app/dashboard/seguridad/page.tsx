@@ -2,6 +2,8 @@ import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { agregarAlertaWhitelist, quitarAlertaWhitelist } from "@/lib/actions/seguridad";
+import { obtenerEstadoBot, obtenerLogsBot } from "@/lib/northflank";
+import { BotControlPanel } from "@/components/bot-control-panel";
 
 const TIPO_LABELS: Record<string, string> = {
   email: "Correo",
@@ -16,6 +18,8 @@ export default async function SeguridadPage() {
   }
 
   const whitelist = await prisma.alertaWhitelist.findMany({ orderBy: { createdAt: "desc" } });
+  const estadoBot = await obtenerEstadoBot();
+  const logsBot = await obtenerLogsBot(80, estadoBot.containerId);
 
   return (
     <div className="space-y-6 max-w-2xl">
@@ -28,6 +32,8 @@ export default async function SeguridadPage() {
           trámites, etc.) queda solo en los canales de logs de Discord, sin avisarte por DM.
         </p>
       </div>
+
+      <BotControlPanel estado={estadoBot} logs={logsBot} />
 
       <div className="rounded-lg border border-border bg-surface p-5">
         <h2 className="text-sm font-semibold mb-1">Whitelist de pruebas</h2>

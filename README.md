@@ -169,6 +169,10 @@ Ya está preparado: `Dockerfile` (instala el repo completo, corre `prisma genera
 
 Igual que con Discloud: si corre acá, apagá el `doj-bot` de PM2 local (`pm2 delete doj-bot`) para que no haya dos bots conectados a la vez.
 
+### Control del bot desde el panel web
+
+El panel `/dashboard/seguridad` (solo Juez Supremo) muestra si el bot está en línea, sus últimos logs y permite reiniciarlo, hablando directo con la API de Northflank (no depende de que el proceso del bot esté conectado). Para que funcione en producción hace falta cargar en Vercel (Production) las mismas variables que ya están en `.env` local: `NORTHFLANK_API_TOKEN` (token de API de la cuenta/equipo de Northflank), `NORTHFLANK_PROJECT_ID` y `NORTHFLANK_SERVICE_ID` (los ID del proyecto/servicio, visibles en la URL del dashboard de Northflank o vía `npx @northflank/cli list projects` / `list services`).
+
 ## Publicar en producción (GitHub + Vercel)
 
 El bot de Discord (PM2) sigue corriendo en este equipo; solo la web (Next.js) se despliega en Vercel. Ambos deben apuntar a la **misma base de datos**, así que el primer paso es sacarla de este disco:

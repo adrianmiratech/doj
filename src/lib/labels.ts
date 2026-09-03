@@ -7,6 +7,7 @@ export const ROLE_LABELS: Record<string, string> = {
   ALGUACIL: "Seguridad",
   ENCARGADO_SAPD: "Encargado SAPD",
   SAPD: "SAPD",
+  STAFF: "Staff",
   CIVIL: "Ciudadano",
 };
 
@@ -20,6 +21,7 @@ export const ROLE_TIER_LABELS: Record<string, string> = {
   ALGUACIL: "Empleado Especial",
   ENCARGADO_SAPD: "Jefatura SAPD",
   SAPD: "Agente SAPD",
+  STAFF: "Staff del servidor",
   CIVIL: "Ciudadano",
 };
 
@@ -33,7 +35,11 @@ export const ROLE_ORDER: string[] = [
   "ALGUACIL",
   "ENCARGADO_SAPD",
   "SAPD",
+  "STAFF",
 ];
+
+// Staff de Discord (moderación), no es personal del DOJ: sin nómina/contrato/fichaje.
+export const STAFF_SERVIDOR_ROLES = ["STAFF"] as const;
 
 export const ESTADO_SOLICITUD_LABELS: Record<string, string> = {
   PENDIENTE: "Pendiente",

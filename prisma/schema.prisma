@@ -20,6 +20,7 @@ enum Role {
   ALGUACIL // Empleado Especial (seguridad): orden en sala, licencia de armas
   ENCARGADO_SAPD // Jefatura de policia (SAPD), gestiona su propia plantilla
   SAPD // Agente de policia (SAPD)
+  STAFF // Equipo de staff/moderacion del servidor de Discord, no es personal del DOJ
   CIVIL
 }
 

@@ -3,6 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requireJuezSupremo } from "@/lib/permisos";
+import { reiniciarBot } from "@/lib/northflank";
+import { enviarLogDiscord } from "@/lib/discord-logs";
 
 export async function agregarAlertaWhitelist(formData: FormData) {
   await requireJuezSupremo();
@@ -29,4 +31,18 @@ export async function quitarAlertaWhitelist(formData: FormData) {
 
   await prisma.alertaWhitelist.delete({ where: { id } });
   revalidatePath("/dashboard/seguridad");
+}
+
+export async function reiniciarBotAction() {
+  const juezSupremo = await requireJuezSupremo();
+  const resultado = await reiniciarBot();
+  if (resultado.ok) {
+    await enviarLogDiscord(
+      prisma,
+      "actividad",
+      `🔁 El bot fue reiniciado manualmente desde el panel web por ${juezSupremo.nombre} ${juezSupremo.apellidos}.`,
+    );
+  }
+  revalidatePath("/dashboard/seguridad");
+  return resultado;
 }

@@ -3,6 +3,7 @@ import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { alternarActivoUsuario, eliminarUsuario, resetearPasswordUsuario } from "@/lib/actions/usuarios";
 import { formatUltimoAcceso } from "@/lib/fecha";
+import { ROLE_LABELS } from "@/lib/labels";
 
 export default async function UsuariosPage() {
   const session = await auth();
@@ -11,17 +12,17 @@ export default async function UsuariosPage() {
   }
 
   const usuarios = await prisma.user.findMany({
-    where: { role: "CIVIL" },
+    where: { role: { in: ["CIVIL", "ENCARGADO_SAPD", "SAPD"] } },
     orderBy: { createdAt: "desc" },
   });
 
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-xl font-semibold">Usuarios (ciudadanos)</h1>
+        <h1 className="text-xl font-semibold">Usuarios</h1>
         <p className="text-sm text-text-muted">
-          Cuentas civiles registradas desde /registro. Distinto de Empleados: aquí no hay rango ni nómina, solo
-          acceso ciudadano al portal.
+          Cuentas ciudadanas y de SAPD. Distinto de Empleados: aquí no hay nómina del DOJ. Para dar de alta o retirar
+          agentes SAPD usá la sección Plantilla SAPD; acá podés gestionar el acceso de cualquiera de estas cuentas.
         </p>
       </div>
 
@@ -33,10 +34,15 @@ export default async function UsuariosPage() {
           <div key={u.id} className="flex flex-wrap items-center justify-between gap-3 px-5 py-3">
             <div className="min-w-0">
               <p className="text-sm font-medium">
-                {u.nombre} {u.apellidos}
+                {u.nombre} {u.apellidos}{" "}
+                {u.role !== "CIVIL" && (
+                  <span className="text-xs text-text-muted font-normal">· {ROLE_LABELS[u.role]}</span>
+                )}
               </p>
               <p className="text-xs text-text-muted">
-                {u.email} · DNI {u.dni} · Registrado el {new Date(u.createdAt).toLocaleDateString("es-ES")}
+                {u.email}
+                {u.role === "CIVIL" && ` · DNI ${u.dni}`} · Registrado el{" "}
+                {new Date(u.createdAt).toLocaleDateString("es-ES")}
               </p>
               <p className="text-xs text-text-muted">Último acceso: {formatUltimoAcceso(u.ultimoAcceso)}</p>
             </div>

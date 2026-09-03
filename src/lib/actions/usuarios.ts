@@ -8,20 +8,24 @@ import { enviarLogDiscord } from "@/lib/discord-logs";
 import { requireJuezSupremo } from "@/lib/permisos";
 import { generarPasswordTemporal } from "@/lib/password";
 
-/** Gestión de cuentas ciudadanas (civiles) registradas en la web, distinta de la gestión de empleados. */
+const ROLES_GESTIONABLES_EN_USUARIOS = ["CIVIL", "ENCARGADO_SAPD", "SAPD"] as const;
+
+/** Gestión de cuentas ciudadanas y de SAPD desde una vista única, distinta de la gestión de empleados del DOJ. */
 export async function alternarActivoUsuario(formData: FormData) {
   const admin = await requireJuezSupremo();
   const id = String(formData.get("id") ?? "");
   if (!id) throw new Error("Datos incompletos");
 
   const usuario = await prisma.user.findUniqueOrThrow({ where: { id } });
-  if (usuario.role !== "CIVIL") throw new Error("Esta cuenta no es civil; gestiónala desde Empleados");
+  if (!ROLES_GESTIONABLES_EN_USUARIOS.includes(usuario.role as (typeof ROLES_GESTIONABLES_EN_USUARIOS)[number])) {
+    throw new Error("Esta cuenta no es civil ni de SAPD; gestiónala desde Empleados");
+  }
 
   await prisma.user.update({ where: { id }, data: { activo: !usuario.activo } });
   await enviarLogDiscord(
     prisma,
     "empleados",
-    `${usuario.activo ? "⛔ Inhabilitada" : "✅ Reactivada"} la cuenta ciudadana de **${usuario.nombre} ${usuario.apellidos}** por ${admin.nombre} ${admin.apellidos}.`,
+    `${usuario.activo ? "⛔ Inhabilitada" : "✅ Reactivada"} la cuenta de **${usuario.nombre} ${usuario.apellidos}** por ${admin.nombre} ${admin.apellidos}.`,
   );
 
   revalidatePath("/dashboard/usuarios");
@@ -54,7 +58,9 @@ export async function eliminarUsuario(formData: FormData) {
   if (!id) throw new Error("Datos incompletos");
 
   const usuario = await prisma.user.findUniqueOrThrow({ where: { id } });
-  if (usuario.role !== "CIVIL") throw new Error("Esta cuenta no es civil; gestiónala desde Empleados");
+  if (!ROLES_GESTIONABLES_EN_USUARIOS.includes(usuario.role as (typeof ROLES_GESTIONABLES_EN_USUARIOS)[number])) {
+    throw new Error("Esta cuenta no es civil ni de SAPD; gestiónala desde Empleados");
+  }
 
   try {
     await prisma.$transaction([
@@ -63,13 +69,13 @@ export async function eliminarUsuario(formData: FormData) {
       prisma.user.delete({ where: { id } }),
     ]);
   } catch {
-    throw new Error("No se puede eliminar: tiene trámites, solicitudes o casos a su nombre.");
+    throw new Error("No se puede eliminar: tiene trámites, solicitudes, casos o registros de servicio a su nombre.");
   }
 
   await enviarLogDiscord(
     prisma,
     "empleados",
-    `🗑️ Cuenta ciudadana de **${usuario.nombre} ${usuario.apellidos}** eliminada por ${admin.nombre} ${admin.apellidos}.`,
+    `🗑️ Cuenta de **${usuario.nombre} ${usuario.apellidos}** eliminada por ${admin.nombre} ${admin.apellidos}.`,
   );
 
   revalidatePath("/dashboard/usuarios");

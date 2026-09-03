@@ -6,7 +6,7 @@ import { totpObligatorioParaRol } from "@/lib/totp";
 import { Topbar } from "@/components/topbar";
 import { SidebarNav, type NavSection } from "@/components/sidebar-nav";
 import { UserSidebarCard } from "@/components/user-sidebar-card";
-import { Totp2FABanner } from "@/components/totp-2fa-banner";
+import { TotpGate } from "@/components/totp-gate";
 import { WelcomeTour } from "@/components/welcome-tour";
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
@@ -20,74 +20,103 @@ export default async function DashboardLayout({ children }: { children: React.Re
   const debeConfigurar2FA = !me?.totpHabilitado && (await totpObligatorioParaRol(user.role));
   const esJuezSupremo = user.role === "JUEZ_SUPREMO";
   const esSapd = user.role === "ENCARGADO_SAPD" || user.role === "SAPD";
+  const esStaff = user.role === "STAFF";
   const puedeOrdenes =
     esJuezSupremo || esSapd || user.role === "FISCAL_GENERAL" || (await tienePermiso(user.role, "RESOLVER_ORDENES"));
 
-  const sections: NavSection[] = [
-    {
-      title: "General",
-      items: [{ href: "/dashboard", label: "Inicio", icon: "inicio" }],
-    },
-    {
-      title: "Mi turno",
-      items: [{ href: "/dashboard/fichaje", label: "Fichaje", icon: "fichaje" }],
-    },
-    {
-      title: "Trabajo",
-      items: [
-        { href: "/dashboard/informes", label: "Informes", icon: "informes" },
-        { href: "/dashboard/solicitudes", label: "Trámites y Solicitudes", icon: "solicitudes" },
-        { href: "/dashboard/certificados", label: "Cert. Antecedentes", icon: "certificados" },
-      ],
-    },
-    {
-      title: "Judicial",
-      items: [
-        ...(user.role === "JUEZ_SUPREMO" || user.role === "JUEZ_DISTRITO"
-          ? [{ href: "/dashboard/mis-juicios", label: "Mis Juicios", icon: "misJuicios" as const }]
-          : []),
-        { href: "/dashboard/casos", label: "Expedientes", icon: "casos" },
-        { href: "/dashboard/audiencias", label: "Audiencias", icon: "audiencias" },
-        { href: "/dashboard/contratos", label: "Registro Civil", icon: "contratos" },
-        ...(puedeOrdenes
-          ? [
-              { href: "/dashboard/ordenes", label: "Órdenes judiciales", icon: "ordenes" as const },
-              { href: "/dashboard/resoluciones", label: "Resoluciones", icon: "resoluciones" as const },
-            ]
-          : []),
-      ],
-    },
-    {
-      title: "Mi perfil",
-      items: esSapd
-        ? []
-        : [
+  const sections: NavSection[] = esStaff
+    ? [
+        {
+          title: "General",
+          items: [{ href: "/dashboard", label: "Inicio", icon: "inicio" }],
+        },
+        {
+          title: "Comunicación",
+          items: [{ href: "/dashboard/feedback", label: "Quejas y Sugerencias", icon: "feedback" }],
+        },
+      ]
+    : esSapd
+    ? [
+        {
+          title: "General",
+          items: [{ href: "/dashboard", label: "Inicio", icon: "inicio" }],
+        },
+        {
+          title: "SAPD",
+          items: [
+            { href: "/dashboard/sapd", label: "Plantilla SAPD", icon: "sapd" },
+            { href: "/dashboard/fichaje", label: "Fichaje", icon: "fichaje" },
+            { href: "/dashboard/informes", label: "Informes", icon: "informes" },
+            { href: "/dashboard/solicitudes", label: "Trámites y Solicitudes", icon: "solicitudes" },
+            { href: "/dashboard/certificados", label: "Cert. Antecedentes", icon: "certificados" },
+            { href: "/dashboard/ordenes", label: "Órdenes judiciales", icon: "ordenes" },
+            { href: "/dashboard/resoluciones", label: "Resoluciones", icon: "resoluciones" },
+          ],
+        },
+        {
+          title: "Comunicación",
+          items: [{ href: "/dashboard/feedback", label: "Quejas y Sugerencias", icon: "feedback" }],
+        },
+      ]
+    : [
+        {
+          title: "General",
+          items: [{ href: "/dashboard", label: "Inicio", icon: "inicio" }],
+        },
+        {
+          title: "Mi turno",
+          items: [{ href: "/dashboard/fichaje", label: "Fichaje", icon: "fichaje" }],
+        },
+        {
+          title: "Trabajo",
+          items: [
+            { href: "/dashboard/informes", label: "Informes", icon: "informes" },
+            { href: "/dashboard/solicitudes", label: "Trámites y Solicitudes", icon: "solicitudes" },
+            { href: "/dashboard/certificados", label: "Cert. Antecedentes", icon: "certificados" },
+          ],
+        },
+        {
+          title: "Judicial",
+          items: [
+            ...(user.role === "JUEZ_SUPREMO" || user.role === "JUEZ_DISTRITO"
+              ? [{ href: "/dashboard/mis-juicios", label: "Mis Juicios", icon: "misJuicios" as const }]
+              : []),
+            { href: "/dashboard/casos", label: "Expedientes", icon: "casos" },
+            { href: "/dashboard/audiencias", label: "Audiencias", icon: "audiencias" },
+            { href: "/dashboard/contratos", label: "Registro Civil", icon: "contratos" },
+            ...(puedeOrdenes
+              ? [
+                  { href: "/dashboard/ordenes", label: "Órdenes judiciales", icon: "ordenes" as const },
+                  { href: "/dashboard/resoluciones", label: "Resoluciones", icon: "resoluciones" as const },
+                ]
+              : []),
+          ],
+        },
+        {
+          title: "Mi perfil",
+          items: [
             { href: "/dashboard/mi-contrato", label: "Contrato laboral", icon: "miContrato" as const },
             { href: "/dashboard/nominas", label: "Nóminas", icon: "nominas" as const },
             { href: "/dashboard/pluses", label: "Mis Pluses", icon: "pluses" as const },
             { href: "/dashboard/faltas", label: "Faltas", icon: "faltas" as const },
           ],
-    },
-    {
-      title: "Comunicación",
-      items: [{ href: "/dashboard/feedback", label: "Quejas y Sugerencias", icon: "feedback" }],
-    },
-    ...(esSapd
-      ? []
-      : [
-          {
-            title: "Recursos",
-            items: [
-              { href: "/dashboard/jerarquia", label: "Escala Jerárquica", icon: "jerarquia" as const },
-              { href: "/dashboard/condecoraciones", label: "Condecoraciones", icon: "condecoraciones" as const },
-              { href: "/dashboard/examenes", label: "Exámenes", icon: "examenes" as const },
-              { href: "/dashboard/ranking", label: "Ranking", icon: "ranking" as const },
-            ],
-          },
-        ]),
-  ];
+        },
+        {
+          title: "Comunicación",
+          items: [{ href: "/dashboard/feedback", label: "Quejas y Sugerencias", icon: "feedback" }],
+        },
+        {
+          title: "Recursos",
+          items: [
+            { href: "/dashboard/jerarquia", label: "Escala Jerárquica", icon: "jerarquia" as const },
+            { href: "/dashboard/condecoraciones", label: "Condecoraciones", icon: "condecoraciones" as const },
+            { href: "/dashboard/examenes", label: "Exámenes", icon: "examenes" as const },
+            { href: "/dashboard/ranking", label: "Ranking", icon: "ranking" as const },
+          ],
+        },
+      ];
 
-  if (esSapd || esJuezSupremo) {
+  if (esJuezSupremo) {
     sections.push({
       title: "SAPD",
       items: [{ href: "/dashboard/sapd", label: "Plantilla SAPD", icon: "sapd" }],
@@ -100,11 +129,13 @@ export default async function DashboardLayout({ children }: { children: React.Re
       items: [
         { href: "/dashboard/empleados", label: "Empleados", icon: "empleados" },
         ...(esJuezSupremo ? [{ href: "/dashboard/usuarios", label: "Usuarios", icon: "usuarios" as const }] : []),
+        ...(esJuezSupremo ? [{ href: "/dashboard/staff", label: "Staff del servidor", icon: "staff" as const }] : []),
         { href: "/dashboard/postulaciones", label: "Postulaciones", icon: "postulaciones" },
         ...(esJuezSupremo ? [{ href: "/dashboard/permisos", label: "Permisos", icon: "permisos" as const }] : []),
         ...(esJuezSupremo ? [{ href: "/dashboard/accesos", label: "Registros de acceso", icon: "accesos" as const }] : []),
         ...(esJuezSupremo ? [{ href: "/dashboard/seguridad", label: "Seguridad del bot", icon: "seguridad" as const }] : []),
         ...(esJuezSupremo ? [{ href: "/dashboard/rendimiento", label: "Rendimiento", icon: "rendimiento" as const }] : []),
+        ...(esJuezSupremo ? [{ href: "/dashboard/documentos", label: "Generar documento", icon: "documentos" as const }] : []),
       ],
     });
   }
@@ -141,15 +172,16 @@ export default async function DashboardLayout({ children }: { children: React.Re
           </div>
         </aside>
         <main className="flex-1 min-w-0 p-6 bg-bg">
-          {debeConfigurar2FA && <Totp2FABanner />}
-          {!me?.tourCompletado && (
-            <WelcomeTour
-              nombre={user.nombre}
-              rango={ROLE_LABELS[user.role] ?? user.role}
-              legajo={user.legajo}
-            />
-          )}
-          {children}
+          <TotpGate activo={debeConfigurar2FA}>
+            {!me?.tourCompletado && (
+              <WelcomeTour
+                nombre={user.nombre}
+                rango={ROLE_LABELS[user.role] ?? user.role}
+                legajo={user.legajo}
+              />
+            )}
+            {children}
+          </TotpGate>
         </main>
       </div>
     </div>
