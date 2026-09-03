@@ -23,9 +23,15 @@ export function generarCertificadoAntecedentesPdf(datos: {
     const pageH = doc.page.height;
     const margin = 56;
 
-    // Marco decorativo exterior e interior.
-    doc.rect(24, 24, pageW - 48, pageH - 48).lineWidth(2).strokeColor(dorado).stroke();
-    doc.rect(30, 30, pageW - 60, pageH - 60).lineWidth(0.75).strokeColor(dorado).stroke();
+    // Marco decorativo exterior e interior, repetido en cada página: si el
+    // detalle es largo y desborda a una página nueva (PDFKit las añade
+    // sola), sin este listener solo la primera página tenía el estilo.
+    const dibujarMarco = () => {
+      doc.rect(24, 24, pageW - 48, pageH - 48).lineWidth(2).strokeColor(dorado).stroke();
+      doc.rect(30, 30, pageW - 60, pageH - 60).lineWidth(0.75).strokeColor(dorado).stroke();
+    };
+    doc.on("pageAdded", dibujarMarco);
+    dibujarMarco();
 
     const fechaStr = datos.fecha.toLocaleDateString("es-ES", { year: "numeric", month: "long", day: "numeric" });
 
@@ -87,8 +93,15 @@ export function generarCertificadoAntecedentesPdf(datos: {
       );
     }
 
-    // Sello (marcador circular decorativo) y firma, anclados hacia el final de la pagina.
-    const firmaY = pageH - 190;
+    // Sello (marcador circular decorativo) y firma, anclados hacia el final de la
+    // página para certificados cortos; si el detalle desbordó el texto hasta ahí
+    // (o a una página nueva), se coloca después del texto en vez de encima.
+    const ALTO_BLOQUE_FIRMA = 140;
+    let firmaY = Math.max(doc.y + 40, pageH - 190);
+    if (firmaY + ALTO_BLOQUE_FIRMA > pageH - 40) {
+      doc.addPage();
+      firmaY = pageH - 190;
+    }
 
     doc.save();
     doc.circle(margin + 45, firmaY + 10, 42).lineWidth(1.5).strokeColor(dorado).stroke();

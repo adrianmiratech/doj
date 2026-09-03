@@ -81,7 +81,10 @@ export async function actualizarTramite(formData: FormData) {
     include: { ciudadano: true, tipo: true },
   });
 
-  let avisoCertificado = "";
+  // Para el certificado de antecedentes se manda un único DM con el PDF adjunto
+  // (no uno de "cambio de estado" seguido de otro con el documento): antes se
+  // enviaban ambos y el ciudadano recibía el aviso duplicado por Discord.
+  let notificado = false;
   if (esTramiteDeAntecedentes(tramite.tipo.nombre) && (tieneAntecedentes === "si" || tieneAntecedentes === "no")) {
     const pdf = await generarCertificadoAntecedentesPdf({
       nombreCiudadano: `${tramite.ciudadano.nombre} ${tramite.ciudadano.apellidos}`,
@@ -101,7 +104,7 @@ export async function actualizarTramite(formData: FormData) {
 
     await notificarDiscordConAdjunto(
       tramite.ciudadano.discordId,
-      `📄 Tu **${tramite.tipo.nombre}** ya está listo. Adjunto tienes el documento oficial; también puedes descargarlo desde el portal (Trámites).`,
+      `📄 Tu **${tramite.tipo.nombre}** ha cambiado de estado a **${ESTADO_SOLICITUD_LABELS[tramite.estado]}** y ya está listo. Adjunto tienes el documento oficial; también puedes descargarlo desde el portal (Trámites).`,
       { nombre: "certificado-antecedentes.pdf", datos: pdf, tipoMime: "application/pdf" },
     );
     await notificarUsuario(tramite.ciudadanoId, {
@@ -110,21 +113,23 @@ export async function actualizarTramite(formData: FormData) {
       mensaje: "Ya puedes descargar tu certificado.",
       enlace: "/portal/tramites",
     });
-    avisoCertificado = " El certificado en PDF ya está generado y disponible para el ciudadano.";
+    notificado = true;
   }
 
-  await notificarDiscord(
-    tramite.ciudadano.discordId,
-    `📄 Tu trámite **${tramite.tipo.nombre}** ha cambiado de estado a **${ESTADO_SOLICITUD_LABELS[tramite.estado]}**.${
-      tramite.respuesta ? `\nRespuesta: ${tramite.respuesta}` : ""
-    }`,
-  );
-  await notificarUsuario(tramite.ciudadanoId, {
-    tipo: "tramite",
-    titulo: "Tu trámite ha sido actualizado",
-    mensaje: `${tramite.tipo.nombre} · ${ESTADO_SOLICITUD_LABELS[tramite.estado]}${avisoCertificado}`,
-    enlace: "/portal/tramites",
-  });
+  if (!notificado) {
+    await notificarDiscord(
+      tramite.ciudadano.discordId,
+      `📄 Tu trámite **${tramite.tipo.nombre}** ha cambiado de estado a **${ESTADO_SOLICITUD_LABELS[tramite.estado]}**.${
+        tramite.respuesta ? `\nRespuesta: ${tramite.respuesta}` : ""
+      }`,
+    );
+    await notificarUsuario(tramite.ciudadanoId, {
+      tipo: "tramite",
+      titulo: "Tu trámite ha sido actualizado",
+      mensaje: `${tramite.tipo.nombre} · ${ESTADO_SOLICITUD_LABELS[tramite.estado]}`,
+      enlace: "/portal/tramites",
+    });
+  }
 
   revalidatePath("/dashboard/tramites");
   revalidatePath("/dashboard/solicitudes");

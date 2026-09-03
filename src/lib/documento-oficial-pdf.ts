@@ -23,8 +23,15 @@ export function generarDocumentoOficialPdf(datos: {
     const pageH = doc.page.height;
     const margin = 56;
 
-    doc.rect(24, 24, pageW - 48, pageH - 48).lineWidth(2).strokeColor(dorado).stroke();
-    doc.rect(30, 30, pageW - 60, pageH - 60).lineWidth(0.75).strokeColor(dorado).stroke();
+    // El marco decorativo debe repetirse en cada página: un contenido largo
+    // desborda automáticamente a páginas nuevas (PDFKit las añade solo), y sin
+    // este listener solo la primera página quedaba con el estilo del membrete.
+    const dibujarMarco = () => {
+      doc.rect(24, 24, pageW - 48, pageH - 48).lineWidth(2).strokeColor(dorado).stroke();
+      doc.rect(30, 30, pageW - 60, pageH - 60).lineWidth(0.75).strokeColor(dorado).stroke();
+    };
+    doc.on("pageAdded", dibujarMarco);
+    dibujarMarco();
 
     const fechaStr = datos.fecha.toLocaleDateString("es-ES", { year: "numeric", month: "long", day: "numeric" });
 
@@ -63,7 +70,15 @@ export function generarDocumentoOficialPdf(datos: {
     y = doc.y + 18;
     doc.text(datos.contenido, margin, y, { align: "justify", width: pageW - margin * 2 });
 
-    const firmaY = pageH - 190;
+    // La firma/sello se ancla cerca del final de la página para documentos
+    // cortos, pero si el contenido llega hasta ahí (o se desbordó a una
+    // página nueva) hay que colocarla después del texto, nunca encima.
+    const ALTO_BLOQUE_FIRMA = 140;
+    let firmaY = Math.max(doc.y + 40, pageH - 190);
+    if (firmaY + ALTO_BLOQUE_FIRMA > pageH - 40) {
+      doc.addPage();
+      firmaY = pageH - 190;
+    }
 
     doc.save();
     doc.circle(margin + 45, firmaY + 10, 42).lineWidth(1.5).strokeColor(dorado).stroke();
