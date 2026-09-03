@@ -152,6 +152,7 @@ model User {
   ordenesResueltas     OrdenJudicial[] @relation("OrdenResuelvePor")
   resolucionesEmitidas Resolucion[]    @relation("ResolucionAutor")
   notificaciones       Notificacion[]
+  mensajesProgramados  MensajeProgramado[]
 }
 
 // Catalogo de tramites, configurable por el Juez Supremo. "alcance" decide
@@ -546,6 +547,37 @@ model TarifaRango {
 model RolDiscordId {
   role          Role   @id
   discordRoleId String
+}
+
+// Fila única (id fijo) con los umbrales del escáner anti-raid/anti-nuke del
+// bot, editables desde el panel de Seguridad sin tener que tocar código.
+model ConfigSeguridad {
+  id                  String   @id @default("singleton")
+  escaneoActivo       Boolean  @default(true)
+  ventanaRaidMs       Int      @default(10000)
+  umbralRaid          Int      @default(5)
+  ventanaNukeMs       Int      @default(30000)
+  umbralNuke          Int      @default(3)
+  ventanaSancionesMs  Int      @default(30000)
+  umbralSanciones     Int      @default(3)
+  umbralBorradoMasivo Int      @default(10)
+  updatedAt           DateTime @updatedAt
+}
+
+// Mensaje que el bot debe publicar en un canal en una fecha/hora futura; el
+// propio bot (proceso siempre activo) revisa esta tabla cada minuto.
+model MensajeProgramado {
+  id            String   @id @default(cuid())
+  channelId     String
+  channelNombre String
+  mensaje       String
+  enviarEn      DateTime
+  enviado       Boolean  @default(false)
+  creadoPorId   String
+  creadoPor     User     @relation(fields: [creadoPorId], references: [id])
+  createdAt     DateTime @default(now())
+
+  @@index([enviado, enviarEn])
 }
 
 // Ordenes judiciales (allanamiento, arresto, registro...) que el SAPD y la

@@ -1,17 +1,50 @@
 import { AuditLogEvent, Events, PermissionFlagsBits, type Client, type Guild } from "discord.js";
+import type { PrismaClient } from "../generated/prisma/client";
 import { enviarLogDiscord, alertaExenta } from "./discord-logs";
 
-type PrismaLike = Parameters<typeof enviarLogDiscord>[0];
+type PrismaLike = Pick<InstanceType<typeof PrismaClient>, "canalLog" | "alertaWhitelist" | "configSeguridad">;
+
+type ConfigActual = {
+  escaneoActivo: boolean;
+  ventanaRaidMs: number;
+  umbralRaid: number;
+  ventanaNukeMs: number;
+  umbralNuke: number;
+  ventanaSancionesMs: number;
+  umbralSanciones: number;
+  umbralBorradoMasivo: number;
+};
+
+const CONFIG_DEFECTO: ConfigActual = {
+  escaneoActivo: true,
+  ventanaRaidMs: 10_000,
+  umbralRaid: 5,
+  ventanaNukeMs: 30_000,
+  umbralNuke: 3,
+  ventanaSancionesMs: 30_000,
+  umbralSanciones: 3,
+  umbralBorradoMasivo: 10,
+};
+
+const REFRESCO_CONFIG_MS = 2 * 60_000;
 
 // Umbrales de detección de raid/nuke: ventanas deslizantes en memoria (el bot
-// corre en un único proceso, así que no hace falta persistirlas).
-const VENTANA_RAID_MS = 10_000;
-const UMBRAL_RAID = 5;
-const VENTANA_NUKE_MS = 30_000;
-const UMBRAL_NUKE = 3;
-const VENTANA_SANCIONES_MS = 30_000;
-const UMBRAL_SANCIONES = 3;
-const UMBRAL_BORRADO_MASIVO = 10;
+// corre en un único proceso, así que no hace falta persistirlas). Los valores
+// se cargan de ConfigSeguridad (editable desde el panel web) y se refrescan
+// cada REFRESCO_CONFIG_MS para no consultar la base en cada evento.
+let config: ConfigActual = CONFIG_DEFECTO;
+
+async function cargarConfig(prisma: PrismaLike) {
+  try {
+    config = await prisma.configSeguridad.upsert({
+      where: { id: "singleton" },
+      create: { id: "singleton" },
+      update: {},
+    });
+  } catch (error) {
+    console.error("[discord] No se pudo cargar ConfigSeguridad, usando valores por defecto:", error);
+  }
+}
 
 const ingresos: number[] = [];
 const borradosEstructura: number[] = []; // canales + roles borrados
@@ -45,6 +78,7 @@ async function ejecutorDe(guild: Guild, tipo: AuditLogEvent, objetivoId?: string
  * del propio equipo no generan falsas alarmas al owner.
  */
 async function avisarOwner(client: Client, prisma: PrismaLike, titulo: string, descripcion: string, ejecutorId?: string | null) {
+  if (!config.escaneoActivo) return;
   const guild = client.guilds.cache.first();
   if (!guild) return;
   try {
@@ -68,7 +102,13 @@ async function avisarOwner(client: Client, prisma: PrismaLike, titulo: string, d
  * raid, nuke, mención masiva o escalada de privilegios.
  */
 export function registrarEscaneoServidor(client: Client, prisma: PrismaLike, contenidoDisponible: boolean) {
-  const log = (mensaje: string) => enviarLogDiscord(prisma, "actividad", mensaje).catch(console.error);
+  cargarConfig(prisma).catch(console.error);
+  setInterval(() => cargarConfig(prisma).catch(console.error), REFRESCO_CONFIG_MS);
+
+  const log = (mensaje: string) => {
+    if (!config.escaneoActivo) return;
+    enviarLogDiscord(prisma, "actividad", mensaje).catch(console.error);
+  };
 
   client.on(Events.MessageCreate, (message) => {
     if (!message.guild || message.author.id === client.user?.id) return;
@@ -96,7 +136,7 @@ export function registrarEscaneoServidor(client: Client, prisma: PrismaLike, con
   client.on(Events.MessageBulkDelete, (messages, channel) => {
     const cantidad = messages.size;
     log(`🗑️ Se borraron **${cantidad}** mensajes de golpe en <#${channel.id}>.`);
-    if (cantidad >= UMBRAL_BORRADO_MASIVO) {
+    if (cantidad >= config.umbralBorradoMasivo) {
       avisarOwner(
         client,
         prisma,
@@ -117,15 +157,15 @@ export function registrarEscaneoServidor(client: Client, prisma: PrismaLike, con
 
   client.on(Events.GuildMemberAdd, (member) => {
     const ahora = Date.now();
-    const enVentana = registrarEnVentana(ingresos, ahora, VENTANA_RAID_MS);
+    const enVentana = registrarEnVentana(ingresos, ahora, config.ventanaRaidMs);
     const cuentaNueva = ahora - member.user.createdTimestamp < 24 * 3_600_000;
     log(`📥 **${member.user.tag}** se unió al servidor${cuentaNueva ? " ⚠️ *(cuenta creada hace menos de 24h)*" : ""}.`);
-    if (enVentana >= UMBRAL_RAID) {
+    if (enVentana >= config.umbralRaid) {
       avisarOwner(
         client,
         prisma,
         "Posible raid de entradas masivas",
-        `${enVentana} cuentas se unieron al servidor en menos de ${VENTANA_RAID_MS / 1000}s. Última: ${member.user.tag}.`,
+        `${enVentana} cuentas se unieron al servidor en menos de ${config.ventanaRaidMs / 1000}s. Última: ${member.user.tag}.`,
         member.user.id,
       ).catch(console.error);
     }
@@ -139,15 +179,15 @@ export function registrarEscaneoServidor(client: Client, prisma: PrismaLike, con
 
   client.on(Events.GuildBanAdd, async (ban) => {
     const ahora = Date.now();
-    const enVentana = registrarEnVentana(sanciones, ahora, VENTANA_SANCIONES_MS);
+    const enVentana = registrarEnVentana(sanciones, ahora, config.ventanaSancionesMs);
     const ejecutor = await ejecutorDe(ban.guild, AuditLogEvent.MemberBanAdd, ban.user.id);
     log(`🔨 **${ban.user.tag}** fue baneado por **${ejecutor.tag}**.`);
-    if (enVentana >= UMBRAL_SANCIONES) {
+    if (enVentana >= config.umbralSanciones) {
       await avisarOwner(
         client,
         prisma,
         "Cadena de baneos",
-        `${enVentana} baneos en menos de ${VENTANA_SANCIONES_MS / 1000}s. Último: ${ban.user.tag} (por ${ejecutor.tag}).`,
+        `${enVentana} baneos en menos de ${config.ventanaSancionesMs / 1000}s. Último: ${ban.user.tag} (por ${ejecutor.tag}).`,
         ejecutor.id,
       );
     }
@@ -165,15 +205,15 @@ export function registrarEscaneoServidor(client: Client, prisma: PrismaLike, con
   client.on(Events.ChannelDelete, async (channel) => {
     if (channel.isDMBased()) return;
     const ahora = Date.now();
-    const enVentana = registrarEnVentana(borradosEstructura, ahora, VENTANA_NUKE_MS);
+    const enVentana = registrarEnVentana(borradosEstructura, ahora, config.ventanaNukeMs);
     const ejecutor = await ejecutorDe(channel.guild, AuditLogEvent.ChannelDelete);
     log(`📁 Canal **#${channel.name}** borrado por **${ejecutor.tag}**.`);
-    if (enVentana >= UMBRAL_NUKE) {
+    if (enVentana >= config.umbralNuke) {
       await avisarOwner(
         client,
         prisma,
         "Posible nuke del servidor",
-        `${enVentana} canales/roles borrados en menos de ${VENTANA_NUKE_MS / 1000}s. Último ejecutor detectado: ${ejecutor.tag}.`,
+        `${enVentana} canales/roles borrados en menos de ${config.ventanaNukeMs / 1000}s. Último ejecutor detectado: ${ejecutor.tag}.`,
         ejecutor.id,
       );
     }
@@ -196,15 +236,15 @@ export function registrarEscaneoServidor(client: Client, prisma: PrismaLike, con
 
   client.on(Events.GuildRoleDelete, async (role) => {
     const ahora = Date.now();
-    const enVentana = registrarEnVentana(borradosEstructura, ahora, VENTANA_NUKE_MS);
+    const enVentana = registrarEnVentana(borradosEstructura, ahora, config.ventanaNukeMs);
     const ejecutor = await ejecutorDe(role.guild, AuditLogEvent.RoleDelete);
     log(`🏷️ Rol **${role.name}** borrado por **${ejecutor.tag}**.`);
-    if (enVentana >= UMBRAL_NUKE) {
+    if (enVentana >= config.umbralNuke) {
       await avisarOwner(
         client,
         prisma,
         "Posible nuke del servidor",
-        `${enVentana} canales/roles borrados en menos de ${VENTANA_NUKE_MS / 1000}s. Último ejecutor detectado: ${ejecutor.tag}.`,
+        `${enVentana} canales/roles borrados en menos de ${config.ventanaNukeMs / 1000}s. Último ejecutor detectado: ${ejecutor.tag}.`,
         ejecutor.id,
       );
     }

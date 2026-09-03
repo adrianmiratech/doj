@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requireJuezSupremo } from "@/lib/permisos";
 import { enviarLogDiscord } from "@/lib/discord-logs";
+import { ROLE_LABELS } from "@/lib/labels";
 import {
   enviarMensajeCanal,
   enviarMensajeDirecto,
@@ -11,6 +12,11 @@ import {
   banearMiembro,
   desbanearMiembro,
   silenciarMiembro,
+  buscarMiembros,
+  purgarMensajes,
+  bloquearCanal,
+  cambiarSlowmode,
+  type MiembroBuscado,
 } from "@/lib/discord-control";
 
 const ID_DISCORD_RE = /^\d{15,25}$/;
@@ -91,5 +97,85 @@ export async function accionModeracionAction(formData: FormData) {
   }
 
   if (resultado.ok) await registrar(etiqueta);
+  return resultado;
+}
+
+export async function difusionMasivaAction(formData: FormData) {
+  const juezSupremo = await requireJuezSupremo();
+  const rango = String(formData.get("rango") ?? "TODOS");
+  const mensaje = String(formData.get("mensaje") ?? "").trim();
+  if (!mensaje) return { ok: false, error: "Falta el mensaje" };
+
+  const destinatarios = await prisma.user.findMany({
+    where: { activo: true, discordId: { not: null }, ...(rango !== "TODOS" ? { role: rango as never } : {}) },
+    select: { discordId: true },
+    take: 200,
+  });
+
+  const resultados = await Promise.allSettled(
+    destinatarios.map((d) => enviarMensajeDirecto(d.discordId as string, mensaje)),
+  );
+  const enviados = resultados.filter((r) => r.status === "fulfilled" && r.value.ok).length;
+  const fallidos = destinatarios.length - enviados;
+
+  await registrar(
+    `📣 ${juezSupremo.nombre} ${juezSupremo.apellidos} envió una difusión a **${rango === "TODOS" ? "todo el personal" : ROLE_LABELS[rango]}** (${enviados} entregados, ${fallidos} fallidos).`,
+  );
+
+  return { ok: true, enviados, fallidos };
+}
+
+export async function buscarMiembrosAction(query: string): Promise<MiembroBuscado[]> {
+  await requireJuezSupremo();
+  if (!query.trim()) return [];
+  return buscarMiembros(query);
+}
+
+export async function purgarMensajesAction(formData: FormData) {
+  const juezSupremo = await requireJuezSupremo();
+  const channelId = String(formData.get("channelId") ?? "");
+  const cantidad = Number(formData.get("cantidad") ?? 0);
+  if (!channelId || !Number.isFinite(cantidad) || cantidad < 1 || cantidad > 100) {
+    return { ok: false, error: "Datos inválidos (la cantidad debe ser entre 1 y 100)" };
+  }
+
+  const resultado = await purgarMensajes(channelId, cantidad);
+  if (resultado.ok) {
+    await registrar(
+      `🧹 ${juezSupremo.nombre} ${juezSupremo.apellidos} purgó ${resultado.borrados ?? 0} mensaje(s) en <#${channelId}> desde el panel.`,
+    );
+  }
+  return resultado;
+}
+
+export async function bloquearCanalAction(formData: FormData) {
+  const juezSupremo = await requireJuezSupremo();
+  const channelId = String(formData.get("channelId") ?? "");
+  const bloquear = String(formData.get("bloquear") ?? "") === "true";
+  if (!channelId) return { ok: false, error: "Faltan datos" };
+
+  const resultado = await bloquearCanal(channelId, bloquear);
+  if (resultado.ok) {
+    await registrar(
+      `${bloquear ? "🔒" : "🔓"} ${juezSupremo.nombre} ${juezSupremo.apellidos} ${bloquear ? "bloqueó" : "desbloqueó"} el canal <#${channelId}> desde el panel.`,
+    );
+  }
+  return resultado;
+}
+
+export async function cambiarSlowmodeAction(formData: FormData) {
+  const juezSupremo = await requireJuezSupremo();
+  const channelId = String(formData.get("channelId") ?? "");
+  const segundos = Number(formData.get("segundos") ?? 0);
+  if (!channelId || !Number.isFinite(segundos) || segundos < 0 || segundos > 21600) {
+    return { ok: false, error: "Datos inválidos" };
+  }
+
+  const resultado = await cambiarSlowmode(channelId, segundos);
+  if (resultado.ok) {
+    await registrar(
+      `🐌 ${juezSupremo.nombre} ${juezSupremo.apellidos} puso el canal <#${channelId}> en modo lento (${segundos}s) desde el panel.`,
+    );
+  }
   return resultado;
 }

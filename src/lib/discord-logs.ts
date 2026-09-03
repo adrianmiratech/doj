@@ -93,6 +93,24 @@ export async function enviarLogDiscord(prisma: PrismaLike, tipo: TipoLog, mensaj
   }
 }
 
+export type LineaHistorial = { descripcion: string; timestamp: string };
+
+/** Últimos mensajes publicados en un canal de log (para mostrarlos en el panel web, sin tener que abrir Discord). */
+export async function obtenerMensajesLog(prisma: PrismaLike, tipo: TipoLog, limite = 30): Promise<LineaHistorial[]> {
+  if (!process.env.DISCORD_TOKEN) return [];
+  try {
+    const canalId = await obtenerOCrearCanal(prisma, tipo);
+    if (!canalId) return [];
+    const res = await fetch(`${API}/channels/${canalId}/messages?limit=${limite}`, { headers: headers() });
+    if (!res.ok) return [];
+    const mensajes = (await res.json()) as { embeds: { description?: string }[]; content: string; timestamp: string }[];
+    return mensajes.map((m) => ({ descripcion: m.embeds[0]?.description ?? m.content, timestamp: m.timestamp }));
+  } catch (error) {
+    console.error("[discord] Error obteniendo mensajes de log:", error);
+    return [];
+  }
+}
+
 /** Contexto de quién/qué disparó una alerta, para poder eximirla si está en la whitelist de pruebas. */
 type ContextoAlerta = { email?: string | null; ip?: string | null; discordId?: string | null };
 

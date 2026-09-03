@@ -24,6 +24,7 @@ import { crearNominaInicial, cerrarSemanaYGenerarNuevas, tarifaHoraDe } from "..
 import { asegurarRolesDiscord, sincronizarMiembroDiscord, otorgarRolPorId } from "../src/lib/discord-roles";
 import { asegurarCanalesLogDiscord, enviarLogDiscord } from "../src/lib/discord-logs";
 import { registrarEscaneoServidor } from "../src/lib/discord-scanner";
+import { enviarMensajeCanal } from "../src/lib/discord-control";
 import { ROLE_LABELS, STAFF_ROLES } from "../src/lib/labels";
 import { generarPasswordTemporal } from "../src/lib/password";
 
@@ -328,6 +329,22 @@ async function asegurarNombreBot(client: Client) {
   }
 }
 
+/** Envía los mensajes programados (panel de Seguridad) cuya fecha ya se cumplió. */
+async function revisarMensajesProgramados() {
+  const pendientes = await prisma.mensajeProgramado.findMany({
+    where: { enviado: false, enviarEn: { lte: new Date() } },
+  });
+  for (const m of pendientes) {
+    const resultado = await enviarMensajeCanal(m.channelId, m.mensaje);
+    if (resultado.ok) {
+      await prisma.mensajeProgramado.update({ where: { id: m.id }, data: { enviado: true } });
+      console.log(`[bot] Mensaje programado enviado a #${m.channelNombre}.`);
+    } else {
+      console.error(`[bot] No se pudo enviar el mensaje programado ${m.id}:`, resultado.error);
+    }
+  }
+}
+
 /** Avisa por Discord a quien lleve más de HORAS_ALERTA_SERVICIO fichado sin cerrar turno. */
 async function revisarFichajesLargos(client: Client) {
   const limite = new Date(Date.now() - HORAS_ALERTA_SERVICIO * 3600000);
@@ -557,6 +574,10 @@ function registrarHandlers(c: Client, escucharCambiosDeRol: boolean, contenidoDi
 
   cron.schedule("*/15 * * * *", () => {
     revisarFichajesLargos(c).catch(console.error);
+  });
+
+  cron.schedule("* * * * *", () => {
+    revisarMensajesProgramados().catch(console.error);
   });
 }
 
