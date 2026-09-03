@@ -108,6 +108,7 @@ model User {
   telefono     String?
   discordId    String? // para menciones/alertas por Discord
   role         Role     @default(CIVIL)
+  esStaffServidor Boolean @default(false) // acceso de staff/moderacion del servidor de Discord; independiente del rango de trabajo (role)
   cargo        String? // ej. "Sala de lo Penal"
   legajo       String?  @unique // numero de placa, solo personal del depto.
   activo       Boolean  @default(true) // false = inhabilitada permanentemente

@@ -21,7 +21,7 @@ export default auth((req) => {
   }
 
   if (session?.user) {
-    const isStaff = STAFF_ROLES.has(session.user.role);
+    const isStaff = STAFF_ROLES.has(session.user.role) || session.user.esStaffServidor === true;
 
     if (isStaffArea && !isStaff) {
       return NextResponse.redirect(new URL("/portal", req.nextUrl.origin));

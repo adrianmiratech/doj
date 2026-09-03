@@ -12,6 +12,7 @@ declare module "next-auth" {
       role: Role;
       cargo: string | null;
       legajo: string | null;
+      esStaffServidor: boolean;
     };
   }
 }
@@ -24,6 +25,7 @@ declare module "@auth/core/jwt" {
     apellidos: string;
     cargo: string | null;
     legajo: string | null;
+    esStaffServidor: boolean;
     remember?: boolean;
   }
 }
@@ -59,6 +61,7 @@ export const authConfig: NextAuthConfig = {
         token.apellidos = (user as { apellidos: string }).apellidos;
         token.cargo = (user as { cargo: string | null }).cargo;
         token.legajo = (user as { legajo: string | null }).legajo;
+        token.esStaffServidor = (user as { esStaffServidor?: boolean }).esStaffServidor === true;
         token.remember = (user as { remember?: boolean }).remember === true;
       }
       return token;
@@ -70,6 +73,7 @@ export const authConfig: NextAuthConfig = {
       session.user.apellidos = token.apellidos;
       session.user.cargo = token.cargo;
       session.user.legajo = token.legajo;
+      session.user.esStaffServidor = token.esStaffServidor === true;
       return session;
     },
   },

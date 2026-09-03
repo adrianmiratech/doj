@@ -80,7 +80,7 @@ export async function alternarTotpObligatorioRol(formData: FormData) {
   const juezSupremo = await requireJuezSupremo();
 
   const role = String(formData.get("role") ?? "") as Role;
-  if (!role || role === "JUEZ_SUPREMO") throw new Error("Rango inválido");
+  if (!role) throw new Error("Rango inválido");
 
   const existente = await prisma.rolTotp.findUnique({ where: { role } });
   const nuevoValor = !(existente?.obligatorio ?? false);

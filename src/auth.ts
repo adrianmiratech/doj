@@ -27,7 +27,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       if (token?.id) {
         const fresco = await prisma.user.findUnique({
           where: { id: token.id as string },
-          select: { role: true, cargo: true, legajo: true, nombre: true, apellidos: true },
+          select: { role: true, cargo: true, legajo: true, nombre: true, apellidos: true, esStaffServidor: true },
         });
         if (fresco) {
           token.role = fresco.role;
@@ -35,6 +35,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           token.legajo = fresco.legajo;
           token.nombre = fresco.nombre;
           token.apellidos = fresco.apellidos;
+          token.esStaffServidor = fresco.esStaffServidor;
         }
       }
       return token;
@@ -115,6 +116,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           role: user.role,
           cargo: user.cargo,
           legajo: user.legajo,
+          esStaffServidor: user.esStaffServidor,
           remember: credentials.remember === "true",
         };
       },

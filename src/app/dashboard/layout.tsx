@@ -1,6 +1,6 @@
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
-import { ROLE_LABELS } from "@/lib/labels";
+import { ROLE_LABELS, TODOS_LOS_RANGOS } from "@/lib/labels";
 import { tienePermiso } from "@/lib/permisos";
 import { totpObligatorioParaRol } from "@/lib/totp";
 import { Topbar } from "@/components/topbar";
@@ -20,7 +20,10 @@ export default async function DashboardLayout({ children }: { children: React.Re
   const debeConfigurar2FA = !me?.totpHabilitado && (await totpObligatorioParaRol(user.role));
   const esJuezSupremo = user.role === "JUEZ_SUPREMO";
   const esSapd = user.role === "ENCARGADO_SAPD" || user.role === "SAPD";
-  const esStaff = user.role === "STAFF";
+  // El acceso de Staff es independiente del rango de trabajo: quien no tiene un
+  // rango real de Justicia/SAPD solo pudo llegar aquí (el middleware redirige a
+  // /portal si no) gracias a `esStaffServidor`, así que ve el panel mínimo de Staff.
+  const esStaff = !(TODOS_LOS_RANGOS as readonly string[]).includes(user.role);
   const puedeOrdenes =
     esJuezSupremo || esSapd || user.role === "FISCAL_GENERAL" || (await tienePermiso(user.role, "RESOLVER_ORDENES"));
 

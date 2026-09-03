@@ -213,6 +213,31 @@ export async function otorgarRolPorId(discordId: string, roleId: string): Promis
   }
 }
 
+/**
+ * Concede el rol de Discord de un rango del sistema (buscado por clave, ej.
+ * "STAFF") a un miembro, sin tocar el resto de sus roles. A diferencia de
+ * `sincronizarMiembroDiscord`, no retira ningún otro rol de rango: se usa
+ * para el acceso de Staff, que ahora es independiente del rango de trabajo.
+ */
+export async function otorgarRolServidorPorClave(prisma: PrismaLike, discordId: string | null | undefined, roleKey: string): Promise<boolean> {
+  if (!discordId) return false;
+  const guildId = await resolverGuildId();
+  if (!guildId) return false;
+  const id = await resolverRolId(prisma, guildId, roleKey);
+  if (!id) return false;
+  return otorgarRolPorId(discordId, id);
+}
+
+/** Retira el rol de Discord de un rango del sistema (buscado por clave) a un miembro, sin tocar el resto. */
+export async function retirarRolServidorPorClave(prisma: PrismaLike, discordId: string | null | undefined, roleKey: string): Promise<boolean> {
+  if (!discordId) return false;
+  const guildId = await resolverGuildId();
+  if (!guildId) return false;
+  const id = await resolverRolId(prisma, guildId, roleKey);
+  if (!id) return false;
+  return retirarRolPorId(discordId, id);
+}
+
 /** Retira un rol de Discord por su ID sin tocar el resto de roles del miembro. */
 export async function retirarRolPorId(discordId: string, roleId: string): Promise<boolean> {
   if (!process.env.DISCORD_TOKEN) return false;

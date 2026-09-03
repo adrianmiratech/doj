@@ -20,6 +20,9 @@ export default async function PermisosPage() {
   const setTotp = new Set(totpObligatorios.map((t) => t.role));
 
   const rangosDelegables = STAFF_ROLES.filter((r) => r !== "JUEZ_SUPREMO");
+  // A diferencia de los permisos delegables, la verificación en dos pasos sí puede
+  // hacerse obligatoria también para el Juez Supremo.
+  const rangosConDosPasos = STAFF_ROLES;
 
   return (
     <div className="space-y-6">
@@ -90,7 +93,7 @@ export default async function PermisosPage() {
             </tr>
           </thead>
           <tbody className="divide-y divide-border">
-            {rangosDelegables.map((r) => {
+            {rangosConDosPasos.map((r) => {
               const obligatorio = setTotp.has(r);
               return (
                 <tr key={r}>

@@ -3,6 +3,7 @@ import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { crearStaff, alternarActivoStaff, retirarAccesoStaff } from "@/lib/actions/staff";
 import { formatUltimoAcceso } from "@/lib/fecha";
+import { ROLE_LABELS } from "@/lib/labels";
 
 export default async function StaffPage() {
   const session = await auth();
@@ -11,7 +12,7 @@ export default async function StaffPage() {
   }
 
   const staff = await prisma.user.findMany({
-    where: { role: "STAFF" },
+    where: { esStaffServidor: true },
     orderBy: { createdAt: "desc" },
   });
 
@@ -20,7 +21,8 @@ export default async function StaffPage() {
       <div>
         <h1 className="text-xl font-semibold">Staff del servidor</h1>
         <p className="text-sm text-text-muted">
-          Equipo de staff/moderación del servidor de Discord. No son personal del DOJ: sin nómina, contrato ni fichaje.
+          Equipo de staff/moderación del servidor de Discord. El acceso de Staff es independiente del rango de
+          trabajo: alguien puede ser, por ejemplo, Fiscal y además Staff a la vez.
         </p>
       </div>
 
@@ -79,7 +81,9 @@ export default async function StaffPage() {
                 {s.nombre} {s.apellidos}
               </p>
               <p className="text-xs text-text-muted">{s.email}</p>
-              <p className="text-xs text-text-muted">Último acceso: {formatUltimoAcceso(s.ultimoAcceso)}</p>
+              <p className="text-xs text-text-muted">
+                Rango de trabajo: {ROLE_LABELS[s.role] ?? s.role} · Último acceso: {formatUltimoAcceso(s.ultimoAcceso)}
+              </p>
             </div>
             <div className="flex items-center gap-2 shrink-0">
               <span
