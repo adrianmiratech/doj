@@ -2,11 +2,13 @@ import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { ROLE_LABELS, TODOS_LOS_RANGOS } from "@/lib/labels";
 import { tienePermiso } from "@/lib/permisos";
-import { totpObligatorioParaRol } from "@/lib/totp";
+import { totpObligatorioParaRol, generarQrTotp } from "@/lib/totp";
+import { iniciarConfiguracion2FA } from "@/lib/actions/totp";
 import { Topbar } from "@/components/topbar";
 import { SidebarNav, type NavSection } from "@/components/sidebar-nav";
 import { UserSidebarCard } from "@/components/user-sidebar-card";
 import { TotpGate } from "@/components/totp-gate";
+import { CompletarPerfilGate } from "@/components/completar-perfil-gate";
 import { WelcomeTour } from "@/components/welcome-tour";
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
@@ -14,10 +16,24 @@ export default async function DashboardLayout({ children }: { children: React.Re
   const user = session!.user;
   const me = await prisma.user.findUnique({
     where: { id: user.id },
-    select: { disponibilidad: true, avatarUrl: true, totpHabilitado: true, tourCompletado: true },
+    select: { disponibilidad: true, avatarUrl: true, totpHabilitado: true, tourCompletado: true, totpSecret: true, email: true },
   });
   const notificacionesNoLeidas = await prisma.notificacion.count({ where: { userId: user.id, leida: false } });
   const debeConfigurar2FA = !me?.totpHabilitado && (await totpObligatorioParaRol(user.role));
+
+  let qrDataUrl: string | null = null;
+  let secretoManual: string | null = null;
+  if (debeConfigurar2FA) {
+    let secreto = me?.totpSecret ?? null;
+    if (!secreto) {
+      await iniciarConfiguracion2FA();
+      secreto = (await prisma.user.findUnique({ where: { id: user.id }, select: { totpSecret: true } }))?.totpSecret ?? null;
+    }
+    if (secreto && me?.email) {
+      qrDataUrl = await generarQrTotp(me.email, secreto);
+      secretoManual = secreto;
+    }
+  }
   const esJuezSupremo = user.role === "JUEZ_SUPREMO";
   const esSapd = user.role === "ENCARGADO_SAPD" || user.role === "SAPD";
   // El acceso de Staff es independiente del rango de trabajo: quien no tiene un
@@ -87,12 +103,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
             { href: "/dashboard/casos", label: "Expedientes", icon: "casos" },
             { href: "/dashboard/audiencias", label: "Audiencias", icon: "audiencias" },
             { href: "/dashboard/contratos", label: "Registro Civil", icon: "contratos" },
-            ...(puedeOrdenes
-              ? [
-                  { href: "/dashboard/ordenes", label: "Órdenes judiciales", icon: "ordenes" as const },
-                  { href: "/dashboard/resoluciones", label: "Resoluciones", icon: "resoluciones" as const },
-                ]
-              : []),
+            ...(puedeOrdenes ? [{ href: "/dashboard/resoluciones", label: "Resoluciones", icon: "resoluciones" as const }] : []),
           ],
         },
         {
@@ -119,11 +130,17 @@ export default async function DashboardLayout({ children }: { children: React.Re
         },
       ];
 
-  if (esJuezSupremo) {
-    sections.push({
-      title: "SAPD",
-      items: [{ href: "/dashboard/sapd", label: "Plantilla SAPD", icon: "sapd" }],
-    });
+  // esSapd y esStaff ya arman su propia sección "SAPD" (con Órdenes judiciales
+  // incluida) dentro del ternario de arriba; esto es solo para el resto del
+  // personal de Justicia con acceso a órdenes (Juez Supremo, Fiscal General...).
+  if (!esSapd && !esStaff) {
+    const sapdItems = [
+      ...(esJuezSupremo ? [{ href: "/dashboard/sapd", label: "Plantilla SAPD", icon: "sapd" as const }] : []),
+      ...(puedeOrdenes ? [{ href: "/dashboard/ordenes", label: "Órdenes judiciales", icon: "ordenes" as const }] : []),
+    ];
+    if (sapdItems.length > 0) {
+      sections.push({ title: "SAPD", items: sapdItems });
+    }
   }
 
   if (esJuezSupremo || (await tienePermiso(user.role, "GESTIONAR_EMPLEADOS"))) {
@@ -155,6 +172,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
       <Topbar
         nombre={user.nombre}
         apellidos={user.apellidos}
+        avatarUrl={me?.avatarUrl ?? null}
         role={user.role}
         cargo={user.cargo}
         notificacionesNoLeidas={notificacionesNoLeidas}
@@ -175,16 +193,18 @@ export default async function DashboardLayout({ children }: { children: React.Re
           </div>
         </aside>
         <main className="flex-1 min-w-0 p-6 bg-bg">
-          <TotpGate activo={debeConfigurar2FA}>
-            {!me?.tourCompletado && (
-              <WelcomeTour
-                nombre={user.nombre}
-                rango={ROLE_LABELS[user.role] ?? user.role}
-                legajo={user.legajo}
-              />
-            )}
-            {children}
-          </TotpGate>
+          <CompletarPerfilGate pendiente={user.perfilPendiente}>
+            <TotpGate activo={debeConfigurar2FA} qrDataUrl={qrDataUrl} secretoManual={secretoManual}>
+              {!me?.tourCompletado && (
+                <WelcomeTour
+                  nombre={user.nombre}
+                  rango={ROLE_LABELS[user.role] ?? user.role}
+                  legajo={user.legajo}
+                />
+              )}
+              {children}
+            </TotpGate>
+          </CompletarPerfilGate>
         </main>
       </div>
     </div>

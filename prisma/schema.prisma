@@ -119,6 +119,7 @@ model User {
   totpSecret     String? // secreto TOTP en base32, null = no configurado
   totpHabilitado Boolean @default(false) // el usuario activó verificación en dos pasos
   tourCompletado Boolean @default(true) // false solo para cuentas nuevas: dispara la guía de bienvenida en el primer login
+  perfilPendiente Boolean @default(false) // true solo en cuentas creadas con datos provisionales (ej. al verificarse por Discord): bloquea el portal hasta que rellene su nombre real y cambie la contraseña temporal
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 

@@ -72,7 +72,7 @@ export default async function JerarquiaPage() {
                   <div key={m.id} className="rounded-md border border-border bg-surface-2 p-3">
                     <div className="flex items-center gap-3">
                       <div className="h-10 w-10 rounded-full border border-border shrink-0 overflow-hidden">
-                        <Avatar url={m.avatarUrl} />
+                        <Avatar url={m.avatarUrl} nombre={m.nombre} apellidos={m.apellidos} />
                       </div>
                       <div className="min-w-0">
                         <p className="text-sm font-medium truncate">

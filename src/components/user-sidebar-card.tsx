@@ -23,7 +23,7 @@ export function UserSidebarCard({
           className="w-full flex items-center gap-2.5 rounded-md px-2 py-2 hover:bg-surface-2 transition-colors text-left"
         >
           <div className="relative h-9 w-9 rounded-full border border-border shrink-0 overflow-hidden">
-            <Avatar url={avatarUrl} />
+            <Avatar url={avatarUrl} nombre={nombre} apellidos={apellidos} />
             <span
               className={`absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2 border-surface ${
                 disponible ? "bg-success" : "bg-danger"

@@ -2,22 +2,23 @@ import { LogOut, Scale } from "lucide-react";
 import { logoutAction } from "@/lib/actions/logout";
 import { ROLE_LABELS } from "@/lib/labels";
 import { NotificationBell } from "@/components/notification-bell";
+import { Avatar } from "@/components/avatar";
 
 export function Topbar({
   nombre,
   apellidos,
+  avatarUrl,
   role,
   cargo,
   notificacionesNoLeidas = 0,
 }: {
   nombre: string;
   apellidos: string;
+  avatarUrl?: string | null;
   role: string;
   cargo: string | null;
   notificacionesNoLeidas?: number;
 }) {
-  const initials = `${nombre[0] ?? ""}${apellidos[0] ?? ""}`.toUpperCase();
-
   return (
     <div className="sticky top-0 z-10 shrink-0">
       <header className="h-14 border-b-2 border-accent bg-navy-2 flex items-center justify-between px-6">
@@ -40,8 +41,8 @@ export function Topbar({
               {cargo ? ` · ${cargo}` : ""}
             </p>
           </div>
-          <div className="h-9 w-9 rounded-full bg-white/10 border border-white/30 flex items-center justify-center text-xs font-semibold text-white">
-            {initials}
+          <div className="h-9 w-9 rounded-full border border-white/30 shrink-0 overflow-hidden">
+            <Avatar url={avatarUrl} nombre={nombre} apellidos={apellidos} />
           </div>
           <NotificationBell initialCount={notificacionesNoLeidas} />
           <form action={logoutAction}>

@@ -12,9 +12,6 @@ import {
   ActionRowBuilder,
   ChannelType,
   MessageFlags,
-  ModalBuilder,
-  TextInputBuilder,
-  TextInputStyle,
   type Interaction,
   type GuildMember,
   type PartialGuildMember,
@@ -50,7 +47,6 @@ const ROL_CIVIL_VERIFICADO_ID = "1541389546074411028";
 const CANAL_ALERTA_4H_ID = "1541395639781564529";
 const HORAS_ALERTA_SERVICIO = 4;
 const BOTON_VERIFICAR_ID = "verificar_civil";
-const MODAL_VERIFICAR_ID = "modal_verificar_civil";
 const CANAL_BIENVENIDA_ID = "1541360682635632762";
 const CANAL_PANEL_TICKETS_ID = "1541401067294687262";
 const CATEGORIA_TICKETS_ID = "1541401110684893254";
@@ -123,8 +119,12 @@ const staffCommand = new SlashCommandBuilder()
   .setDescription("Da (o añade) el acceso de Staff/moderación del servidor a alguien, tenga o no ya cuenta y rango en el DOJ")
   .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
   .addUserOption((opt) => opt.setName("usuario").setDescription("Usuario de Discord").setRequired(true))
-  .addStringOption((opt) => opt.setName("nombre").setDescription("Nombre").setRequired(true))
-  .addStringOption((opt) => opt.setName("apellidos").setDescription("Apellidos").setRequired(true));
+  .addStringOption((opt) =>
+    opt.setName("nombre").setDescription("Nombre (solo hace falta si el usuario no tiene cuenta todavía)"),
+  )
+  .addStringOption((opt) =>
+    opt.setName("apellidos").setDescription("Apellidos (solo hace falta si el usuario no tiene cuenta todavía)"),
+  );
 
 async function registrarComandos() {
   const rest = new REST().setToken(TOKEN);
@@ -305,11 +305,18 @@ async function manejarStaff(interaction: Interaction) {
   await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
   const discordUser = interaction.options.getUser("usuario", true);
-  const nombre = interaction.options.getString("nombre", true).trim();
-  const apellidos = interaction.options.getString("apellidos", true).trim();
+  const nombre = interaction.options.getString("nombre")?.trim() || "";
+  const apellidos = interaction.options.getString("apellidos")?.trim() || "";
 
   try {
     const existente = await prisma.user.findFirst({ where: { discordId: discordUser.id } });
+
+    if (!existente && (!nombre || !apellidos)) {
+      await interaction.editReply(
+        `⚠️ ${discordUser} todavía no tiene cuenta en el portal: para crearle una hacen falta \`nombre\` y \`apellidos\`.`,
+      );
+      return;
+    }
 
     if (existente) {
       if (existente.esStaffServidor) {
@@ -406,48 +413,14 @@ async function manejarStaff(interaction: Interaction) {
 /**
  * Al pulsar "Verificarme como ciudadano": si el Discord ID ya tiene cuenta en
  * el portal (personal, staff o civil de antes), solo se le concede el rol de
- * acceso al servidor. Si no tiene cuenta, se le pide su nombre de personaje
- * con un modal y se le crea una cuenta de Ciudadano, notificada por DM — así
- * verificarse da acceso al servidor Y credenciales del portal en un solo paso.
+ * acceso al servidor. Si no tiene cuenta, se le crea una de Ciudadano al
+ * instante con datos provisionales (marcada `perfilPendiente`) y se le manda
+ * el correo y una contraseña temporal por DM; el propio portal le pedirá su
+ * nombre real y que cambie la contraseña en cuanto inicie sesión por primera
+ * vez (ver `perfilPendiente` / `completarPerfilInicial`).
  */
 async function manejarBotonVerificacion(interaction: Interaction) {
   if (!interaction.isButton() || interaction.customId !== BOTON_VERIFICAR_ID) return;
-
-  const existente = await prisma.user.findFirst({ where: { discordId: interaction.user.id } });
-
-  if (existente) {
-    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
-    const ok = await otorgarRolPorId(interaction.user.id, ROL_CIVIL_VERIFICADO_ID);
-    await interaction.editReply(
-      ok
-        ? `✅ Verificado. Ya tenías una cuenta en el portal (**${existente.nombre} ${existente.apellidos}**) — entra en ${APP_URL}.`
-        : "⚠️ No se pudo asignar el rol, avisa a un administrador.",
-    );
-    return;
-  }
-
-  const modal = new ModalBuilder().setCustomId(MODAL_VERIFICAR_ID).setTitle("Verificación de ciudadano");
-  const nombreInput = new TextInputBuilder()
-    .setCustomId("nombre")
-    .setLabel("Nombre del personaje")
-    .setStyle(TextInputStyle.Short)
-    .setMaxLength(50)
-    .setRequired(true);
-  const apellidosInput = new TextInputBuilder()
-    .setCustomId("apellidos")
-    .setLabel("Apellidos del personaje")
-    .setStyle(TextInputStyle.Short)
-    .setMaxLength(50)
-    .setRequired(true);
-  modal.addComponents(
-    new ActionRowBuilder<TextInputBuilder>().addComponents(nombreInput),
-    new ActionRowBuilder<TextInputBuilder>().addComponents(apellidosInput),
-  );
-  await interaction.showModal(modal);
-}
-
-async function manejarModalVerificacion(interaction: Interaction) {
-  if (!interaction.isModalSubmit() || interaction.customId !== MODAL_VERIFICAR_ID) return;
 
   await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
@@ -457,50 +430,48 @@ async function manejarModalVerificacion(interaction: Interaction) {
       const ok = await otorgarRolPorId(interaction.user.id, ROL_CIVIL_VERIFICADO_ID);
       await interaction.editReply(
         ok
-          ? `✅ Verificado. Ya tenías una cuenta en el portal — entra en ${APP_URL}.`
+          ? `✅ Verificado. Ya tenías una cuenta en el portal (**${existente.nombre} ${existente.apellidos}**) — entra en ${APP_URL}.`
           : "⚠️ No se pudo asignar el rol, avisa a un administrador.",
       );
       return;
     }
 
-    const nombre = interaction.fields.getTextInputValue("nombre").trim();
-    const apellidos = interaction.fields.getTextInputValue("apellidos").trim();
-    const email = await generarEmail(nombre, apellidos);
+    const email = await generarEmail("ciudadano", interaction.user.id);
     const password = generarPasswordTemporal();
 
     const civil = await prisma.user.create({
       data: {
         email,
         passwordHash: await bcrypt.hash(password, 10),
-        nombre,
-        apellidos,
+        nombre: "Ciudadano",
+        apellidos: "(perfil pendiente)",
         discordId: interaction.user.id,
         role: "CIVIL",
-        tourCompletado: false,
+        tourCompletado: true,
+        perfilPendiente: true,
       },
     });
 
-    await sincronizarMiembroDiscord(prisma, civil.discordId, "CIVIL", `${nombre} ${apellidos}`);
+    await sincronizarMiembroDiscord(prisma, civil.discordId, "CIVIL");
     const rolOk = await otorgarRolPorId(interaction.user.id, ROL_CIVIL_VERIFICADO_ID);
 
     await enviarLogDiscord(
       prisma,
       "accesos",
-      `🆕 **${nombre} ${apellidos}** se verificó como ciudadano desde el botón de verificación.`,
+      `🆕 ${interaction.user} se verificó como ciudadano desde el botón de verificación (pendiente de completar su nombre real).`,
     );
 
     const embed = new EmbedBuilder()
       .setColor(0xc9a227)
       .setTitle("Bienvenido a Old State RP")
       .setDescription(
-        "Te has verificado como ciudadano. Entra al portal con estas credenciales para acceder a los trámites y servicios del Departamento de Justicia.",
+        "Te has verificado como ciudadano. Entra al portal con estas credenciales — al iniciar sesión por primera vez te pedirá tu nombre de personaje y que cambies la contraseña temporal.",
       )
       .addFields(
         { name: "Portal", value: APP_URL },
         { name: "Correo", value: email },
         { name: "Contraseña temporal", value: `\`${password}\`` },
-      )
-      .setFooter({ text: "Cambia tu contraseña desde Configuración tras iniciar sesión." });
+      );
 
     let dmEnviado = true;
     try {
@@ -796,7 +767,6 @@ function registrarHandlers(c: Client, escucharCambiosDeRol: boolean, contenidoDi
     manejarEncargadoSapd(interaction).catch(console.error);
     manejarStaff(interaction).catch(console.error);
     manejarBotonVerificacion(interaction).catch(console.error);
-    manejarModalVerificacion(interaction).catch(console.error);
     manejarBotonAbrirTicket(interaction).catch(console.error);
     manejarBotonReclamarTicket(interaction).catch(console.error);
     manejarBotonCerrarTicket(interaction).catch(console.error);

@@ -22,7 +22,7 @@ export default async function PerfilStaffPage() {
         <p className="text-sm text-text-muted">Información de tu cuenta institucional y configuración de acceso.</p>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="rounded-lg border border-border bg-surface p-5 space-y-2 text-sm">
           <Row label="Nombre" value={`${user.nombre} ${user.apellidos}`} />
           <Row label="Correo" value={user.email} />

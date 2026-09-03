@@ -142,7 +142,7 @@ export default async function EmpleadosPage() {
               <summary className="flex flex-wrap items-center justify-between gap-3 cursor-pointer list-none">
                 <div className="flex items-center gap-3 min-w-0">
                   <div className="h-9 w-9 rounded-full border border-border shrink-0 overflow-hidden">
-                    <Avatar url={e.avatarUrl} />
+                    <Avatar url={e.avatarUrl} nombre={e.nombre} apellidos={e.apellidos} />
                   </div>
                   <div className="min-w-0">
                     <p className="text-sm font-medium">
