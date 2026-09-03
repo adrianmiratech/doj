@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 
@@ -19,13 +20,17 @@ export type PermisoKey = keyof typeof PERMISOS;
 
 export const PERMISO_KEYS = Object.keys(PERMISOS) as PermisoKey[];
 
-export async function tienePermiso(role: string, permiso: PermisoKey): Promise<boolean> {
+// Varias páginas y acciones consultan el mismo permiso repetidas veces en
+// un mismo request (layout + página + acciones); cache() de React dedupe
+// esas consultas dentro de un mismo render/request, sin servir datos
+// obsoletos entre requests distintos.
+export const tienePermiso = cache(async (role: string, permiso: PermisoKey): Promise<boolean> => {
   if (role === "JUEZ_SUPREMO") return true;
   const concedido = await prisma.rolPermiso.findUnique({
     where: { role_permiso: { role: role as never, permiso } },
   });
   return !!concedido;
-}
+});
 
 /** Exige el permiso indicado (el Juez Supremo siempre lo cumple). Lanza si no está autenticado o no lo tiene. */
 export async function requirePermiso(permiso: PermisoKey) {

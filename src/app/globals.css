@@ -1,20 +1,22 @@
 @import "tailwindcss";
 
 :root {
-  --bg: #0b0d12;
-  --surface: #12151c;
-  --surface-2: #1a1e27;
-  --surface-3: #232838;
-  --border: #262b36;
-  --text: #e8eaed;
-  --text-muted: #8b93a1;
-  --accent: #c9a227;
-  --accent-hover: #ddb635;
-  --accent-foreground: #16130a;
-  --success: #22c55e;
-  --danger: #ef4444;
-  --warning: #f59e0b;
-  --info: #3b82f6;
+  --bg: #e4e4e0;
+  --surface: #ffffff;
+  --surface-2: #eeeeea;
+  --surface-3: #dcdcd6;
+  --border: #9a9a92;
+  --text: #1a1a1a;
+  --text-muted: #4d4d47;
+  --accent: #a8801c;
+  --accent-hover: #8f6c17;
+  --accent-foreground: #ffffff;
+  --success: #1f6b2e;
+  --danger: #a3231d;
+  --warning: #8a5a00;
+  --info: #144a8c;
+  --navy: #16244a;
+  --navy-2: #1f3568;
 }
 
 @theme inline {
@@ -32,22 +34,42 @@
   --color-danger: var(--danger);
   --color-warning: var(--warning);
   --color-info: var(--info);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-navy: var(--navy);
+  --color-navy-2: var(--navy-2);
+  --font-sans: Arial, "Segoe UI", Helvetica, sans-serif;
+  --font-mono: "Courier New", Courier, monospace;
+
+  /* Look institucional de portal de gobierno de principios de los 2000:
+     esquinas casi rectas en vez del redondeado moderno. rounded-full queda
+     sin tocar (avatares, indicadores). */
+  --radius: 2px;
+  --radius-xs: 1px;
+  --radius-sm: 2px;
+  --radius-md: 2px;
+  --radius-lg: 3px;
+  --radius-xl: 3px;
+  --radius-2xl: 3px;
+  --radius-3xl: 3px;
+  --radius-4xl: 3px;
 }
 
 html {
-  color-scheme: dark;
+  color-scheme: light;
+  font-size: 87.5%;
 }
 
 body {
   background: var(--bg);
   color: var(--text);
-  font-family: var(--font-sans), Arial, Helvetica, sans-serif;
+  font-family: var(--font-sans);
 }
 
 * {
   border-color: var(--border);
+}
+
+a {
+  text-underline-offset: 2px;
 }
 
 /* Tailwind preflight resets el margen por defecto de <dialog>, lo que rompe
@@ -59,9 +81,10 @@ dialog {
   max-height: calc(100vh - 4rem);
   max-width: calc(100vw - 2rem);
   overflow-y: auto;
+  border: 1px solid var(--border);
 }
 dialog::backdrop {
-  background: rgb(0 0 0 / 0.6);
+  background: rgb(10 15 30 / 0.55);
 }
 
 ::selection {
@@ -70,13 +93,14 @@ dialog::backdrop {
 }
 
 ::-webkit-scrollbar {
-  width: 10px;
-  height: 10px;
+  width: 14px;
+  height: 14px;
 }
 ::-webkit-scrollbar-track {
-  background: var(--bg);
+  background: var(--surface-2);
+  border-left: 1px solid var(--border);
 }
 ::-webkit-scrollbar-thumb {
   background: var(--surface-3);
-  border-radius: 999px;
+  border: 1px solid var(--border);
 }

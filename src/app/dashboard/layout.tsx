@@ -119,7 +119,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
         notificacionesNoLeidas={notificacionesNoLeidas}
       />
       <div className="flex-1 flex">
-        <aside className="w-60 shrink-0 border-r border-border bg-surface hidden md:flex md:flex-col sticky top-16 h-[calc(100vh-4rem)] self-start">
+        <aside className="w-60 shrink-0 border-r border-border bg-surface hidden md:flex md:flex-col sticky top-20 h-[calc(100vh-5rem)] self-start">
           <div className="flex-1 overflow-y-auto p-3">
             <SidebarNav sections={seccionesVisibles} />
           </div>
