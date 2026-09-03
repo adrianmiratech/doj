@@ -120,7 +120,7 @@ const encargadoSapdCommand = new SlashCommandBuilder()
 
 const staffCommand = new SlashCommandBuilder()
   .setName("staff")
-  .setDescription("Da de alta a un miembro del staff/moderación del servidor (no es personal del DOJ)")
+  .setDescription("Da (o añade) el acceso de Staff/moderación del servidor a alguien, tenga o no ya cuenta y rango en el DOJ")
   .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
   .addUserOption((opt) => opt.setName("usuario").setDescription("Usuario de Discord").setRequired(true))
   .addStringOption((opt) => opt.setName("nombre").setDescription("Nombre").setRequired(true))
