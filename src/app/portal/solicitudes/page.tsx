@@ -16,12 +16,12 @@ export default async function PortalSolicitudesPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-xl font-semibold">Mis solicitudes</h1>
+        <h1 className="text-xl font-semibold">Denuncias y solicitudes</h1>
         <p className="text-sm text-text-muted">Denuncias, apelaciones, quejas y peticiones.</p>
       </div>
 
-      <details className="rounded-lg border border-border bg-surface p-5" open={solicitudes.length === 0}>
-        <summary className="cursor-pointer text-sm font-medium">+ Presentar nueva solicitud</summary>
+      <details open className="rounded-lg border border-accent/40 bg-surface p-5">
+        <summary className="cursor-pointer text-sm font-semibold">Presentar una denuncia u otra solicitud</summary>
         <form action={crearSolicitud} className="mt-4 space-y-3">
           <div>
             <label className="block text-sm font-medium mb-1.5">Asunto</label>

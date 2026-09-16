@@ -69,7 +69,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
             { href: "/dashboard/sapd", label: "Plantilla SAPD", icon: "sapd" },
             { href: "/dashboard/fichaje", label: "Fichaje", icon: "fichaje" },
             { href: "/dashboard/informes", label: "Informes", icon: "informes" },
-            { href: "/dashboard/solicitudes", label: "Trámites y Solicitudes", icon: "solicitudes" },
+            { href: "/dashboard/solicitudes", label: "Trámites, Solicitudes y Denuncias", icon: "solicitudes" },
             { href: "/dashboard/certificados", label: "Cert. Antecedentes", icon: "certificados" },
             { href: "/dashboard/documentos", label: "Generar documento", icon: "documentos" },
             { href: "/dashboard/ordenes", label: "Órdenes judiciales", icon: "ordenes" },
@@ -97,7 +97,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
           title: "Trabajo",
           items: [
             { href: "/dashboard/informes", label: "Informes", icon: "informes" },
-            { href: "/dashboard/solicitudes", label: "Trámites y Solicitudes", icon: "solicitudes" },
+            { href: "/dashboard/solicitudes", label: "Trámites, Solicitudes y Denuncias", icon: "solicitudes" },
             { href: "/dashboard/certificados", label: "Cert. Antecedentes", icon: "certificados" },
             { href: "/dashboard/documentos", label: "Generar documento", icon: "documentos" },
           ],

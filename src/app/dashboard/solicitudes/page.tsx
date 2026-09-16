@@ -55,14 +55,14 @@ export default async function SolicitudesStaffPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-xl font-semibold">Solicitudes</h1>
+        <h1 className="text-xl font-semibold">Trámites, Solicitudes y Denuncias</h1>
         <p className="text-sm text-text-muted">
           Trámites, solicitudes y denuncias presentadas por la ciudadanía y el propio personal (SAPD incluido), todo en una bandeja.
         </p>
       </div>
 
-      <details className="rounded-lg border border-border bg-surface p-5">
-        <summary className="cursor-pointer text-sm font-medium">+ Registrar una denuncia</summary>
+      <details open className="rounded-lg border border-accent/40 bg-surface p-5">
+        <summary className="cursor-pointer text-sm font-semibold">Registrar una denuncia</summary>
         <form action={crearSolicitud} className="mt-4 space-y-3">
           <div>
             <label className="block text-sm font-medium mb-1.5">Asunto</label>

@@ -48,7 +48,7 @@ export default async function PortalHome() {
           className="rounded-lg border border-border bg-surface p-5 hover:border-accent/40 transition-colors"
         >
           <ClipboardList className="h-5 w-5 text-accent mb-2" />
-          <p className="text-sm font-semibold">Presentar una solicitud</p>
+          <p className="text-sm font-semibold">Presentar una denuncia o solicitud</p>
           <p className="text-sm text-text-muted mt-1">
             Denuncias (penales o civiles), apelaciones, quejas o peticiones.
           </p>

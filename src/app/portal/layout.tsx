@@ -22,7 +22,7 @@ export default async function PortalLayout({ children }: { children: React.React
       title: "Mis gestiones",
       items: [
         { href: "/portal/tramites", label: "Trámites", icon: "tramites" },
-        { href: "/portal/solicitudes", label: "Solicitudes", icon: "solicitudes" },
+        { href: "/portal/solicitudes", label: "Denuncias y Solicitudes", icon: "solicitudes" },
         { href: "/portal/juicios", label: "Mis Juicios", icon: "casos" },
       ],
     },
