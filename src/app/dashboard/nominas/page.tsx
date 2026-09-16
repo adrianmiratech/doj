@@ -17,13 +17,19 @@ export default async function NominasPage() {
   const user = session!.user;
   const puedeGestionar = user.role === "JUEZ_SUPREMO" || (await tienePermiso(user.role, "GESTIONAR_NOMINAS"));
 
-  await actualizarNominaEnCurso(prisma, user.id);
   if (puedeGestionar) {
     const staff = await prisma.user.findMany({
       where: { role: { in: STAFF_ROLES as unknown as string[] as never }, activo: true },
       select: { id: true },
     });
-    for (const s of staff) await actualizarNominaEnCurso(prisma, s.id);
+    const idsAActualizar = new Set(staff.map((s) => s.id));
+    idsAActualizar.add(user.id);
+    // En paralelo: cada nomina es independiente, y encadenarlas una a una
+    // multiplica la latencia de red de la base de datos remota (Turso) por
+    // cada persona de la plantilla, algo muy notable en esta pagina.
+    await Promise.all(Array.from(idsAActualizar).map((id) => actualizarNominaEnCurso(prisma, id)));
+  } else {
+    await actualizarNominaEnCurso(prisma, user.id);
   }
 
   const [misNominas, todasLasNominas, perfil, tarifas] = await Promise.all([

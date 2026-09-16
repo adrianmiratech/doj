@@ -1,11 +1,11 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
-import { ROLE_LABELS } from "@/lib/labels";
+import { ROLE_LABELS, TODOS_LOS_RANGOS } from "@/lib/labels";
 import { generarDocumentoOficialPdf } from "@/lib/documento-oficial-pdf";
 
 export async function POST(req: Request) {
   const session = await auth();
-  if (!session?.user || session.user.role !== "JUEZ_SUPREMO") {
+  if (!session?.user || !(TODOS_LOS_RANGOS as readonly string[]).includes(session.user.role)) {
     return new NextResponse("No autorizado", { status: 401 });
   }
 

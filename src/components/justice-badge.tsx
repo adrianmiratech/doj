@@ -17,7 +17,12 @@ export function JusticeBadge({ legajo, size = 112 }: { legajo: string; size?: nu
           <stop offset="100%" stopColor="#8f7118" />
         </linearGradient>
         <path id="badgeTopCurve" d="M 26,100 A 74,74 0 0 1 174,100" fill="none" />
-        <path id="badgeBottomCurve" d="M 168,124 A 74,74 0 0 0 32,124" fill="none" />
+        {/* Radio mucho mayor que el de arriba a propósito: un arco así de plano
+            (en vez de un semicírculo simétrico) deja "OLD STATE RP" por encima
+            de la balanza y de la cinta con la placa, sin pisarlas. Además debe
+            ir de izquierda a derecha con sweep=0 (no al revés, como estaba):
+            con los puntos cruzados el texto salía invertido y superpuesto. */}
+        <path id="badgeBottomCurve" d="M 30,124 A 182,182 0 0 0 170,124" fill="none" />
       </defs>
 
       <circle cx="100" cy="100" r="94" fill="#0b0d12" stroke={`url(#${gradientId})`} strokeWidth="3" />

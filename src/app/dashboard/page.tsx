@@ -2,6 +2,7 @@ import Link from "next/link";
 import { FileText, ClipboardList, Gavel, CalendarClock } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/auth";
+import { obtenerUsuarioActual } from "@/lib/current-user";
 import { StatusBadge } from "@/components/status-badge";
 import { PlacaWidget } from "@/components/placa-widget";
 import { SessionExpiredCard } from "@/components/session-expired-card";
@@ -23,7 +24,7 @@ export default async function DashboardHome() {
     proximasAudiencias,
     ultimosTramites,
   ] = await Promise.all([
-    prisma.user.findUnique({ where: { id: user.id } }),
+    obtenerUsuarioActual(user.id),
     prisma.fichaje.findMany({ where: { userId: user.id, entrada: { gte: inicioSemana() } } }),
     prisma.contrato.count({ where: { redactorId: user.id, estado: "PENDIENTE_FIRMA" } }),
     prisma.falta.count({ where: { empleadoId: user.id, estado: "PENDIENTE" } }),

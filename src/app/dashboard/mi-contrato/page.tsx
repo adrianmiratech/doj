@@ -1,5 +1,6 @@
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
+import { obtenerUsuarioActual } from "@/lib/current-user";
 import { ROLE_LABELS, ROLE_TIER_LABELS, STAFF_ROLES } from "@/lib/labels";
 import { actualizarContratoLaboral, crearContratoLaboral, reenviarContratoLaboral } from "@/lib/actions/contratos-laborales";
 import { FirmarContratoForm } from "./firmar-contrato-form";
@@ -11,7 +12,7 @@ export default async function MiContratoPage() {
   const esJuezSupremo = user.role === "JUEZ_SUPREMO";
 
   const [me, contratos, todosLosContratos, personal] = await Promise.all([
-    prisma.user.findUniqueOrThrow({ where: { id: user.id } }),
+    obtenerUsuarioActual(user.id),
     prisma.contratoLaboral.findMany({ where: { userId: user.id }, orderBy: { fechaInicio: "desc" } }),
     esJuezSupremo
       ? prisma.contratoLaboral.findMany({
@@ -28,6 +29,7 @@ export default async function MiContratoPage() {
         })
       : Promise.resolve([]),
   ]);
+  if (!me) throw new Error("Usuario no encontrado");
 
   const ESTADO_LABEL: Record<string, string> = {
     PENDIENTE_FIRMA: "Pendiente de firma",

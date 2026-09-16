@@ -1,5 +1,5 @@
 import { auth } from "@/auth";
-import { prisma } from "@/lib/prisma";
+import { obtenerUsuarioActual } from "@/lib/current-user";
 import { ChangePasswordForm } from "@/components/change-password-form";
 import { SessionExpiredCard } from "@/components/session-expired-card";
 import { TotpSetupForm } from "@/components/totp-setup-form";
@@ -8,7 +8,7 @@ import { generarQrTotp } from "@/lib/totp";
 
 export default async function PerfilCivilPage() {
   const session = await auth();
-  const user = await prisma.user.findUnique({ where: { id: session!.user.id } });
+  const user = await obtenerUsuarioActual(session!.user.id);
   if (!user) return <SessionExpiredCard />;
 
   const qrDataUrl =

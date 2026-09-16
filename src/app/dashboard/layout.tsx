@@ -1,5 +1,6 @@
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
+import { obtenerUsuarioActual } from "@/lib/current-user";
 import { ROLE_LABELS, TODOS_LOS_RANGOS } from "@/lib/labels";
 import { tienePermiso } from "@/lib/permisos";
 import { totpObligatorioParaRol, generarQrTotp } from "@/lib/totp";
@@ -14,11 +15,10 @@ import { WelcomeTour } from "@/components/welcome-tour";
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   const session = await auth();
   const user = session!.user;
-  const me = await prisma.user.findUnique({
-    where: { id: user.id },
-    select: { disponibilidad: true, avatarUrl: true, totpHabilitado: true, tourCompletado: true, totpSecret: true, email: true },
-  });
-  const notificacionesNoLeidas = await prisma.notificacion.count({ where: { userId: user.id, leida: false } });
+  const [me, notificacionesNoLeidas] = await Promise.all([
+    obtenerUsuarioActual(user.id),
+    prisma.notificacion.count({ where: { userId: user.id, leida: false } }),
+  ]);
   const debeConfigurar2FA = !me?.totpHabilitado && (await totpObligatorioParaRol(user.role));
 
   let qrDataUrl: string | null = null;
@@ -71,6 +71,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
             { href: "/dashboard/informes", label: "Informes", icon: "informes" },
             { href: "/dashboard/solicitudes", label: "Trámites y Solicitudes", icon: "solicitudes" },
             { href: "/dashboard/certificados", label: "Cert. Antecedentes", icon: "certificados" },
+            { href: "/dashboard/documentos", label: "Generar documento", icon: "documentos" },
             { href: "/dashboard/ordenes", label: "Órdenes judiciales", icon: "ordenes" },
             { href: "/dashboard/resoluciones", label: "Resoluciones", icon: "resoluciones" },
           ],
@@ -98,6 +99,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
             { href: "/dashboard/informes", label: "Informes", icon: "informes" },
             { href: "/dashboard/solicitudes", label: "Trámites y Solicitudes", icon: "solicitudes" },
             { href: "/dashboard/certificados", label: "Cert. Antecedentes", icon: "certificados" },
+            { href: "/dashboard/documentos", label: "Generar documento", icon: "documentos" },
           ],
         },
         {
@@ -164,7 +166,6 @@ export default async function DashboardLayout({ children }: { children: React.Re
         ...(esJuezSupremo ? [{ href: "/dashboard/accesos", label: "Registros de acceso", icon: "accesos" as const }] : []),
         ...(esJuezSupremo ? [{ href: "/dashboard/seguridad", label: "Seguridad del bot", icon: "seguridad" as const }] : []),
         ...(esJuezSupremo ? [{ href: "/dashboard/rendimiento", label: "Rendimiento", icon: "rendimiento" as const }] : []),
-        ...(esJuezSupremo ? [{ href: "/dashboard/documentos", label: "Generar documento", icon: "documentos" as const }] : []),
       ],
     });
   }

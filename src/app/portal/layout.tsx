@@ -1,5 +1,6 @@
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
+import { obtenerUsuarioActual } from "@/lib/current-user";
 import { Topbar } from "@/components/topbar";
 import { SidebarNav, type NavSection } from "@/components/sidebar-nav";
 import { CompletarPerfilGate } from "@/components/completar-perfil-gate";
@@ -9,7 +10,7 @@ export default async function PortalLayout({ children }: { children: React.React
   const user = session!.user;
   const [notificacionesNoLeidas, me] = await Promise.all([
     prisma.notificacion.count({ where: { userId: user.id, leida: false } }),
-    prisma.user.findUnique({ where: { id: user.id }, select: { avatarUrl: true } }),
+    obtenerUsuarioActual(user.id),
   ]);
 
   const sections: NavSection[] = [

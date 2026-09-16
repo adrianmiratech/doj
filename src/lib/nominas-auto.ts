@@ -50,48 +50,54 @@ export async function cerrarSemanaYGenerarNuevas(prisma: PrismaLike) {
   const semanaAnterior = etiquetaSemana(inicioSemanaAnterior());
   const semanaActual = etiquetaSemana(new Date());
 
-  for (const empleado of empleados) {
-    const tarifa = await tarifaHoraDe(prisma, empleado.id);
+  // Cada empleado se procesa de forma independiente: en paralelo, para no
+  // encadenar una a una las consultas de toda la plantilla (crítico contra
+  // la base de datos remota en producción, donde cada ida y vuelta paga
+  // latencia de red).
+  await Promise.all(
+    empleados.map(async (empleado) => {
+      const tarifa = await tarifaHoraDe(prisma, empleado.id);
 
-    const nominaAnterior = await prisma.nomina.findFirst({
-      where: { userId: empleado.id, periodo: semanaAnterior },
-    });
-    if (nominaAnterior && !nominaAnterior.pagada) {
-      const horas = await horasEnRango(prisma, empleado.id, inicioSemanaAnterior(), finSemanaAnterior());
-      const importe = Math.round(horas * tarifa);
-      await prisma.nomina.update({
-        where: { id: nominaAnterior.id },
-        data: {
-          importe,
-          horas,
-          tarifa,
-          detalle: `${horas.toFixed(1)}h fichadas × $${tarifa}/h`,
-        },
+      const nominaAnterior = await prisma.nomina.findFirst({
+        where: { userId: empleado.id, periodo: semanaAnterior },
       });
-      await notificarDiscord(
-        empleado.discordId,
-        `💰 Tu nómina de **${semanaAnterior}** ya está calculada: $${importe.toLocaleString("es-ES")} (${horas.toFixed(1)}h × $${tarifa}/h). Confírmala en el portal (Nóminas).`,
-      );
-    }
+      if (nominaAnterior && !nominaAnterior.pagada) {
+        const horas = await horasEnRango(prisma, empleado.id, inicioSemanaAnterior(), finSemanaAnterior());
+        const importe = Math.round(horas * tarifa);
+        await prisma.nomina.update({
+          where: { id: nominaAnterior.id },
+          data: {
+            importe,
+            horas,
+            tarifa,
+            detalle: `${horas.toFixed(1)}h fichadas × $${tarifa}/h`,
+          },
+        });
+        await notificarDiscord(
+          empleado.discordId,
+          `💰 Tu nómina de **${semanaAnterior}** ya está calculada: $${importe.toLocaleString("es-ES")} (${horas.toFixed(1)}h × $${tarifa}/h). Confírmala en el portal (Nóminas).`,
+        );
+      }
 
-    const nominaActual = await prisma.nomina.findFirst({
-      where: { userId: empleado.id, periodo: semanaActual },
-    });
-    if (!nominaActual) {
-      const numeroSemana = (await prisma.nomina.count({ where: { userId: empleado.id } })) + 1;
-      await prisma.nomina.create({
-        data: {
-          userId: empleado.id,
-          periodo: semanaActual,
-          numeroSemana,
-          inicio: inicioSemanaActual(),
-          fin: finSemanaActual(),
-          tarifa,
-          importe: 0,
-        },
+      const nominaActual = await prisma.nomina.findFirst({
+        where: { userId: empleado.id, periodo: semanaActual },
       });
-    }
-  }
+      if (!nominaActual) {
+        const numeroSemana = (await prisma.nomina.count({ where: { userId: empleado.id } })) + 1;
+        await prisma.nomina.create({
+          data: {
+            userId: empleado.id,
+            periodo: semanaActual,
+            numeroSemana,
+            inicio: inicioSemanaActual(),
+            fin: finSemanaActual(),
+            tarifa,
+            importe: 0,
+          },
+        });
+      }
+    }),
+  );
 }
 
 /** Crea la primera nomina (semana actual, $0) para un empleado recien contratado. */

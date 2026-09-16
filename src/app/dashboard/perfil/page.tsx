@@ -1,5 +1,5 @@
 import { auth } from "@/auth";
-import { prisma } from "@/lib/prisma";
+import { obtenerUsuarioActual } from "@/lib/current-user";
 import { ROLE_LABELS } from "@/lib/labels";
 import { ChangePasswordForm } from "@/components/change-password-form";
 import { SessionExpiredCard } from "@/components/session-expired-card";
@@ -9,7 +9,7 @@ import { generarQrTotp } from "@/lib/totp";
 
 export default async function PerfilStaffPage() {
   const session = await auth();
-  const user = await prisma.user.findUnique({ where: { id: session!.user.id } });
+  const user = await obtenerUsuarioActual(session!.user.id);
   if (!user) return <SessionExpiredCard />;
 
   const qrDataUrl =

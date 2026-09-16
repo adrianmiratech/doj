@@ -1,9 +1,10 @@
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
+import { TODOS_LOS_RANGOS } from "@/lib/labels";
 
 export default async function DocumentosPage() {
   const session = await auth();
-  if (session?.user.role !== "JUEZ_SUPREMO") {
+  if (!session?.user || !(TODOS_LOS_RANGOS as readonly string[]).includes(session.user.role)) {
     redirect("/dashboard");
   }
 
