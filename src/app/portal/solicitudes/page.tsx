@@ -1,10 +1,8 @@
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { StatusBadge } from "@/components/status-badge";
-import { ESTADO_SOLICITUD_COLORS, ESTADO_SOLICITUD_LABELS } from "@/lib/labels";
+import { ESTADO_SOLICITUD_COLORS, ESTADO_SOLICITUD_LABELS, SOLICITUD_CATEGORIAS } from "@/lib/labels";
 import { crearSolicitud } from "@/lib/actions/solicitudes";
-
-const CATEGORIAS = ["Apelacion", "Queja", "Peticion", "Denuncia civil", "Otro"];
 
 export default async function PortalSolicitudesPage() {
   const session = await auth();
@@ -19,7 +17,7 @@ export default async function PortalSolicitudesPage() {
     <div className="space-y-6">
       <div>
         <h1 className="text-xl font-semibold">Mis solicitudes</h1>
-        <p className="text-sm text-text-muted">Apelaciones, quejas, peticiones y denuncias civiles.</p>
+        <p className="text-sm text-text-muted">Denuncias, apelaciones, quejas y peticiones.</p>
       </div>
 
       <details className="rounded-lg border border-border bg-surface p-5" open={solicitudes.length === 0}>
@@ -45,7 +43,7 @@ export default async function PortalSolicitudesPage() {
               <option value="" disabled>
                 Selecciona una categoría
               </option>
-              {CATEGORIAS.map((c) => (
+              {SOLICITUD_CATEGORIAS.map((c) => (
                 <option key={c} value={c}>
                   {c}
                 </option>

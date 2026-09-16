@@ -57,6 +57,18 @@ export const ESTADO_SOLICITUD_COLORS: Record<string, string> = {
   CERRADA: "bg-surface-3 text-text-muted border-border",
 };
 
+// Categorias de Solicitud. Las denuncias (penal y civil) las puede presentar
+// tanto un ciudadano desde /portal/solicitudes como el propio personal (SAPD
+// incluido) desde /dashboard/solicitudes.
+export const SOLICITUD_CATEGORIAS = [
+  "Denuncia penal",
+  "Denuncia civil",
+  "Apelacion",
+  "Queja",
+  "Peticion",
+  "Otro",
+] as const;
+
 export const ESTADO_CASO_LABELS: Record<string, string> = {
   ABIERTO: "Abierto",
   EN_PROCESO: "En proceso",

@@ -3,11 +3,11 @@
 import { revalidatePath } from "next/cache";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
-import { STAFF_ROLES, ESTADO_SOLICITUD_LABELS } from "@/lib/labels";
+import { STAFF_ROLES, SAPD_ROLES, SOLICITUD_CATEGORIAS, ESTADO_SOLICITUD_LABELS } from "@/lib/labels";
 import { notificarDiscord } from "@/lib/discord-notify";
-import type { EstadoSolicitud } from "@/generated/prisma/enums";
-
-const CATEGORIAS = ["Apelacion", "Queja", "Peticion", "Denuncia civil", "Otro"] as const;
+import { enviarLogDiscord } from "@/lib/discord-logs";
+import { notificarRoles } from "@/lib/notificaciones";
+import type { EstadoSolicitud, Role } from "@/generated/prisma/enums";
 
 async function requireStaff() {
   const session = await auth();
@@ -24,12 +24,26 @@ export async function crearSolicitud(formData: FormData) {
   const asunto = String(formData.get("asunto") ?? "").trim();
   const categoria = String(formData.get("categoria") ?? "");
   const descripcion = String(formData.get("descripcion") ?? "").trim();
-  if (!asunto || !descripcion || !CATEGORIAS.includes(categoria as (typeof CATEGORIAS)[number])) {
+  if (!asunto || !descripcion || !SOLICITUD_CATEGORIAS.includes(categoria as (typeof SOLICITUD_CATEGORIAS)[number])) {
     throw new Error("Datos incompletos");
   }
 
   await prisma.solicitud.create({
     data: { asunto, categoria, descripcion, ciudadanoId: session.user.id },
+  });
+
+  const esDenuncia = categoria.startsWith("Denuncia");
+  await enviarLogDiscord(
+    prisma,
+    "tramites",
+    `${esDenuncia ? "🚨 Nueva denuncia" : "📋 Nueva solicitud"}: **${asunto}** (${categoria}) de ${session.user.nombre} ${session.user.apellidos}. Revísala en Trámites y Solicitudes.`,
+  );
+  // Una denuncia puede requerir atención policial, ademas de Justicia: se avisa a ambos.
+  await notificarRoles([...STAFF_ROLES, ...(esDenuncia ? SAPD_ROLES : [])] as Role[], {
+    tipo: "solicitud",
+    titulo: esDenuncia ? "Nueva denuncia recibida" : "Nueva solicitud recibida",
+    mensaje: `${categoria} · ${asunto} · ${session.user.nombre} ${session.user.apellidos}`,
+    enlace: "/dashboard/solicitudes",
   });
 
   revalidatePath("/portal/solicitudes");

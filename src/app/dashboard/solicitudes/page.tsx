@@ -5,9 +5,10 @@ import {
   ALCANCE_TRAMITE_LABELS,
   ESTADO_SOLICITUD_COLORS,
   ESTADO_SOLICITUD_LABELS,
+  SOLICITUD_CATEGORIAS,
   STAFF_ROLES,
 } from "@/lib/labels";
-import { actualizarSolicitud } from "@/lib/actions/solicitudes";
+import { actualizarSolicitud, crearSolicitud } from "@/lib/actions/solicitudes";
 import { actualizarTramite, crearTramite } from "@/lib/actions/tramites";
 import {
   actualizarTipoTramite,
@@ -56,9 +57,55 @@ export default async function SolicitudesStaffPage() {
       <div>
         <h1 className="text-xl font-semibold">Solicitudes</h1>
         <p className="text-sm text-text-muted">
-          Trámites y solicitudes presentados por la ciudadanía y el personal, todo en una bandeja.
+          Trámites, solicitudes y denuncias presentadas por la ciudadanía y el propio personal (SAPD incluido), todo en una bandeja.
         </p>
       </div>
+
+      <details className="rounded-lg border border-border bg-surface p-5">
+        <summary className="cursor-pointer text-sm font-medium">+ Registrar una denuncia</summary>
+        <form action={crearSolicitud} className="mt-4 space-y-3">
+          <div>
+            <label className="block text-sm font-medium mb-1.5">Asunto</label>
+            <input
+              name="asunto"
+              required
+              placeholder="Título breve de la denuncia"
+              className="w-full rounded-md border border-border bg-surface-2 px-3 py-2 text-sm outline-none focus:border-accent"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium mb-1.5">Tipo</label>
+            <select
+              name="categoria"
+              required
+              defaultValue="Denuncia penal"
+              className="w-full rounded-md border border-border bg-surface-2 px-3 py-2 text-sm outline-none focus:border-accent"
+            >
+              {SOLICITUD_CATEGORIAS.filter((c) => c.startsWith("Denuncia")).map((c) => (
+                <option key={c} value={c}>
+                  {c}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm font-medium mb-1.5">Descripción</label>
+            <textarea
+              name="descripcion"
+              required
+              rows={4}
+              placeholder="Hechos, lugar, fecha e implicados"
+              className="w-full rounded-md border border-border bg-surface-2 px-3 py-2 text-sm outline-none focus:border-accent"
+            />
+          </div>
+          <button
+            type="submit"
+            className="rounded-md bg-accent px-4 py-2 text-sm font-medium text-accent-foreground hover:bg-accent-hover transition-colors"
+          >
+            Registrar denuncia
+          </button>
+        </form>
+      </details>
 
       {tiposDisponibles.length > 0 && (
         <details className="rounded-lg border border-border bg-surface p-5">

@@ -50,7 +50,7 @@ export default async function PortalHome() {
           <ClipboardList className="h-5 w-5 text-accent mb-2" />
           <p className="text-sm font-semibold">Presentar una solicitud</p>
           <p className="text-sm text-text-muted mt-1">
-            Apelaciones, quejas, peticiones o denuncias civiles.
+            Denuncias (penales o civiles), apelaciones, quejas o peticiones.
           </p>
         </Link>
         <Link
